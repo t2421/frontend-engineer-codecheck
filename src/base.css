@@ -1,0 +1,105 @@
+/* Figma values and usage: docs/DESIGN_TOKENS.md */
+:root {
+  --color-bg-canvas: #f5f7fa;
+  --color-bg-surface: #fff;
+  --color-text-primary: #172b3a;
+  --color-text-secondary: #536677;
+  --color-text-inverse: #fff;
+  --color-border-default: #d9e1e8;
+  --color-border-strong: #7a8c9b;
+  --color-action-default: #1558d6;
+  --color-action-hover: #1047b1;
+  --color-action-subtle: #eef4ff;
+  --color-focus: #1558d6;
+  --color-disabled-bg: #e8edf2;
+  --color-disabled-text: #6e7b88;
+  --color-status-error: #b42318;
+  --color-status-error-bg: #fff2f0;
+  --color-series-1: #1558d6;
+  --color-series-2: #087d75;
+  --color-series-3: #ac5710;
+  --font-family: 'Noto Sans JP', sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+  --font-size-caption: 0.75rem;
+  --font-size-body: 0.875rem;
+  --font-size-section: 1.25rem;
+  --font-size-title-mobile: 1.5rem;
+  --font-size-title: 2rem;
+  --line-height-caption: 1.25rem;
+  --line-height-body: 1.375rem;
+  --line-height-section: 1.875rem;
+  --line-height-title-mobile: 2.25rem;
+  --line-height-title: 3rem;
+  --letter-spacing: 0;
+  --font-body: var(--font-weight-regular) var(--font-size-body) /
+    var(--line-height-body) var(--font-family);
+  --font-label: var(--font-weight-medium) var(--font-size-body) /
+    var(--line-height-body) var(--font-family);
+  --font-caption: var(--font-weight-regular) var(--font-size-caption) /
+    var(--line-height-caption) var(--font-family);
+  --font-small-label: var(--font-weight-medium) var(--font-size-caption) /
+    var(--line-height-caption) var(--font-family);
+  --font-section: var(--font-weight-bold) var(--font-size-section) /
+    var(--line-height-section) var(--font-family);
+  --font-title-mobile: var(--font-weight-bold) var(--font-size-title-mobile) /
+    var(--line-height-title-mobile) var(--font-family);
+  --font-title: var(--font-weight-bold) var(--font-size-title) /
+    var(--line-height-title) var(--font-family);
+  --space-0: 0px;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-80: 80px;
+  --radius-4: 4px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --stroke-1: 1px;
+  --stroke-2: 2px;
+  --focus-ring-width: var(--stroke-2);
+  --focus-ring-offset: var(--space-4);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: var(--font-body);
+  letter-spacing: var(--letter-spacing);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-canvas);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: var(--focus-ring-offset);
+}
