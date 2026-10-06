@@ -38,132 +38,97 @@ Vue 3・Vite・TypeScriptの画面とAPI中継を、公式Viteプラグインを
 
 ## 主要処理のシーケンス
 
-図は各役割の処理方針を示す。表示は応答時点の選択状態から導出する。
+図はユーザー・Webアプリ・API Proxy・APIのやり取りを示す。アプリ内部の処理は自己メッセージにまとめ、実装の役割分担は上の表に示す。
 
 ### 初期表示と都道府県一覧取得
 
 ```mermaid
 sequenceDiagram
-  actor User as 利用者
-  participant UI as 画面
-  participant State as 選択と読み込みの管理
-  participant Fetch as API取得（画面側）
+  actor User as ユーザー
+  participant App as Webアプリ
   participant Proxy as API Proxy
   participant API as API
-  User->>UI: 画面を開く
-  UI->>State: 初期化
-  State-->>UI: 県未選択・総人口・選択案内
-  State-->>UI: 一覧読み込み中（操作不可スケルトン）
-  State->>Fetch: 都道府県一覧を取得
-  Fetch->>Proxy: 都道府県一覧GET
-  Proxy->>API: 固定転送先へGET（APIキー付与）
+  User->>App: 画面を開く
+  App->>App: 県未選択・総人口で初期化
+  App-->>User: 選択案内・一覧読み込み中のスケルトン
+  App->>Proxy: 都道府県一覧GET
+  Proxy->>API: APIキーを付けて中継
   API-->>Proxy: 都道府県一覧
-  Proxy-->>Fetch: 一覧応答
-  Fetch-->>State: 検証した一覧
-  State->>State: 一覧と取得状態を更新
-  State-->>UI: 読み込み終了・チェックボックス表示
-  Note over UI,State: 県は自動選択せず、グラフの選択案内を維持
+  Proxy-->>App: 一覧応答
+  App->>App: 応答を検証し、一覧と読み込み状態を更新
+  App-->>User: チェックボックスを表示（県は自動選択しない）
 ```
 
 ### 都道府県選択・取得再利用・解除
 
 ```mermaid
 sequenceDiagram
-  actor User as 利用者
-  participant UI as 画面
-  participant State as 選択と読み込みの管理
-  participant Fetch as API取得（画面側）
+  actor User as ユーザー
+  participant App as Webアプリ
   participant Proxy as API Proxy
   participant API as API
-  participant Transform as グラフ用データの作成
-  participant Chart as グラフの描画・更新
-  User->>UI: 県を選択
-  UI->>State: 選択集合を更新
+  User->>App: 県を選択
+  App->>App: 選択県を更新（同じ取得は重複しない）
   alt 取得済みデータあり
-    State->>Transform: 現在の選択県・区分・取得済みデータ
-    Transform-->>State: グラフ用データ
-    State->>Chart: グラフを更新
+    App->>App: 現在の選択県・区分でグラフを更新
   else 未取得
-    State-->>UI: 人口読み込み中
-    State->>Fetch: 人口構成を取得（県コード）
-    Fetch->>Proxy: 人口構成GET（県コード）
-    Proxy->>API: 固定転送先へGET（APIキー付与）
+    App-->>User: 人口読み込み中
+    App->>Proxy: 人口構成GET（県コード）
+    Proxy->>API: APIキーを付けて中継
     opt 応答前に選択解除
-      User->>UI: 県を解除
-      UI->>State: 選択集合から除外
-      State->>Transform: 現在の選択県・区分・取得済みデータ
-      Transform-->>State: グラフ用データ
-      State->>Chart: グラフを更新
+      User->>App: 県を解除
+      App->>App: 選択県から除外し、表示を更新
+      Note over App: 全解除時は区分維持・選択案内
     end
     API-->>Proxy: 人口構成
-    Proxy-->>Fetch: 人口応答
-    Fetch-->>State: 検証した人口データ
-    State->>State: 最新要求の取得状態とデータを更新
-    State->>Transform: 現在の選択県・区分・取得済みデータ
-    Transform-->>State: グラフ用データ
-    State->>Chart: グラフを更新
+    Proxy-->>App: 人口応答
+    App->>App: 応答を検証し、最新の要求だけ反映
+    App->>App: 現在の選択県・区分でグラフを更新
   end
-  Note over State,Chart: 解除した県は描画対象に戻さない。全解除は区分維持・選択案内
-  Note over State,Proxy: 同じ取得が進行中なら重複要求を出さず、古い応答は状態を上書きしない
+  Note over App: 解除した県は描画対象に戻さない
 ```
 
 ### 人口区分の切替
 
 ```mermaid
 sequenceDiagram
-  actor User as 利用者
-  participant UI as 画面
-  participant State as 選択と読み込みの管理
-  participant Transform as グラフ用データの作成
-  participant Chart as グラフの描画・更新
-  User->>UI: 人口区分を切り替える
-  UI->>State: 区分を更新（選択県は維持）
-  State->>Transform: 選択県・新しい区分・取得済みデータ
-  Transform-->>State: グラフ用データ
-  State->>Chart: グラフを更新
-  State-->>UI: 表示中の区分を更新
-  Note over UI,Chart: 区分切替だけではAPIを再取得しない。未選択時は案内を維持
-  Note over State,Chart: 取得中のデータも、到着時点の区分に合わせて反映
+  actor User as ユーザー
+  participant App as Webアプリ
+  User->>App: 人口区分を切り替える
+  App->>App: 区分を更新（選択県は維持）
+  App->>App: 取得済みデータでグラフを更新（再取得しない）
+  App-->>User: 新しい区分のグラフ、未選択なら選択案内
+  Note over App: 取得中のデータも到着時点の区分で表示
 ```
 
 ### 取得失敗と再試行
 
 ```mermaid
 sequenceDiagram
-  actor User as 利用者
-  participant UI as 画面
-  participant State as 選択と読み込みの管理
-  participant Fetch as API取得（画面側）
+  actor User as ユーザー
+  participant App as Webアプリ
   participant Proxy as API Proxy
   participant API as API
-  State->>Fetch: 一覧または人口構成を取得
-  Fetch->>Proxy: 一覧または人口構成GET
-  Proxy->>API: 検証済み要求を転送
+  App->>Proxy: 一覧または人口構成GET
+  Proxy->>API: 許可した要求を中継
   API-->>Proxy: エラーまたはタイムアウト
-  Proxy-->>Fetch: 安全なエラー応答
-  Fetch-->>State: 画面で扱えるエラー
-  State-->>UI: 読み込み解除・失敗表示・再試行操作
-  Note over State,API: 内部情報・秘密値を画面に渡さない。画面側の通信・応答検証失敗も失敗状態へ
-  User->>UI: 再試行
-  UI->>State: 対象データの再取得
-  State-->>UI: 読み込み中
-  State->>Fetch: 一覧または人口構成を取得
-  Fetch->>Proxy: 一覧または人口構成GET
-  Proxy->>API: 検証済み要求を転送
+  Proxy-->>App: 安全なエラー応答
+  App-->>User: 読み込み終了・失敗表示・再試行操作
+  User->>App: 再試行
+  App-->>User: 読み込み中
+  App->>Proxy: 対象データを再取得
+  Proxy->>API: 許可した要求を中継
   alt 成功
     API-->>Proxy: データ
-    Proxy-->>Fetch: データ応答
-    Fetch-->>State: 検証したデータ
-    State->>State: 最新要求の状態を更新
-    State-->>UI: 読み込み解除・現在の選択状態に対応する一覧またはグラフ
+    Proxy-->>App: データ応答
+    App->>App: 応答を検証し、最新の要求だけ反映
+    App-->>User: 読み込み終了・現在の選択に対応する一覧またはグラフ
   else 再び失敗
     API-->>Proxy: エラーまたはタイムアウト
-    Proxy-->>Fetch: 安全なエラー応答
-    Fetch-->>State: 画面で扱えるエラー
-    State-->>UI: 読み込み解除・失敗表示・再試行操作
+    Proxy-->>App: 安全なエラー応答
+    App-->>User: 読み込み終了・失敗表示・再試行操作
   end
 ```
-
 
 ## API Proxyとセキュリティ
 
