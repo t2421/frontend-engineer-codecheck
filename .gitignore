@@ -8,3 +8,5 @@ test-results/
 .wrangler/
 .dev.vars*
 .env*
+dist-review/
+review-assets/
