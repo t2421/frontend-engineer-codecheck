@@ -47,8 +47,12 @@ pnpm test:e2e
 
 ## 品質チェック
 
-pnpm checkでlint・CSS・整形・型を検査します。[実行手順と監査の残課題](./docs/QUALITY_CHECKS.md)を参照してください。Stylelint経由のbracesに未解消High 1件があり、監査は未合格です。
+pnpm checkでlint・CSS・整形・型を検査します。[実行手順と監査の残課題](./docs/QUALITY_CHECKS.md)を参照してください。Stylelint経由のbracesに未解消High 1件があり、監査には承認済みの当該GHSAだけの例外があります。
 
 ## Cloudflareのローカル実行
 
-[新規チェックアウトからの手順と監査の残課題](./docs/WORKERS_SETUP.md)を参照してください。公式ViteプラグインでWorkerとStatic Assetsをbuild・previewします。Cloudflare依存を更新してundiciを修正し、sharpも経路を限定して修正版へ更新しています。Stylelint経由のbraces High 1件が未解消のため、全依存監査は未合格です。
+[新規チェックアウトからの手順と監査の残課題](./docs/WORKERS_SETUP.md)を参照してください。公式ViteプラグインでWorkerとStatic Assetsをbuild・previewします。Cloudflare依存を更新してundiciを修正し、sharpも経路を限定して修正版へ更新しています。Stylelint経由のbraces High 1件が未解消のため、全依存監査には承認済みの当該GHSAだけの例外があります。
+
+## CI/CD
+
+GitHub ActionsでPRの品質・テスト・buildと全依存監査を実行します。Cloudflareデプロイはmainから手動実行します。[設定・再実行・失敗時の手順](./docs/CI_CD.md)を参照してください。新しい監査指摘や通信失敗はデプロイを停止します。

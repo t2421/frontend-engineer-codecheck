@@ -1,0 +1,27 @@
+name: Setup project
+description: Use the pinned Node and pnpm versions and install the frozen lockfile.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version-file: .nvmrc
+        package-manager-cache: false
+    - name: Install pnpm 12.8.1
+      shell: bash
+      run: |
+        curl --fail --silent --show-error --location --retry 3 \
+          https://github.com/pnpm/pnpm/releases/download/v12.8.1/pnpm-linux-x64.tar.gz \
+          --output "$RUNNER_TEMP/pnpm-linux-x64.tar.gz"
+        printf '%s  %s\n' \
+          db3906881f63e41b655e3b97d473603dc26326c2470d0b1b8083689e1bcbd1e8 \
+          "$RUNNER_TEMP/pnpm-linux-x64.tar.gz" | sha256sum --check --strict
+        mkdir -p "$RUNNER_TEMP/pnpm"
+        tar -xzf "$RUNNER_TEMP/pnpm-linux-x64.tar.gz" -C "$RUNNER_TEMP/pnpm"
+        echo "$RUNNER_TEMP/pnpm" >> "$GITHUB_PATH"
+    - name: Install dependencies
+      shell: bash
+      run: |
+        node --version
+        pnpm --version
+        pnpm install --frozen-lockfile
