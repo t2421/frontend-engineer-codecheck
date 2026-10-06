@@ -7,6 +7,7 @@ export default defineConfig([
   {
     ignores: [
       'dist/**',
+      '.wrangler/**',
       'node_modules/**',
       'test-results/**',
       'playwright-report/**',

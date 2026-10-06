@@ -43,8 +43,12 @@ pnpm test:e2e
 
 `test`はVitestのnode単体テストとjsdomのVue Test Utilsテスト、`test:e2e`はChromeでの画面テストです。ブラウザテストは5175番で専用serverを自動起動・停止します。失敗時のtraceは`test-results`へ保存されます。
 
-#15では、単体・部品・Chromeの各サンプルの期待値を意図的に誤らせて失敗を確認し、正しい期待値へ戻すと全3件が成功しました。TypeScriptは7.0.2を維持しています。品質チェックは #16、Cloudflare環境は #17 で扱います。
+#15では、単体・部品・Chromeの各サンプルの期待値を意図的に誤らせて失敗を確認し、正しい期待値へ戻すと全3件が成功しました。TypeScriptは7.0.2を維持しています。品質チェックとCloudflare環境の追加手順は以下を参照してください。
 
 ## 品質チェック
 
 pnpm checkでlint・CSS・整形・型を検査します。[実行手順と監査の残課題](./docs/QUALITY_CHECKS.md)を参照してください。Stylelint経由のbracesに未解消High 1件があり、監査は未合格です。
+
+## Cloudflareのローカル実行
+
+[新規チェックアウトからの手順と監査の残課題](./docs/WORKERS_SETUP.md)を参照してください。公式ViteプラグインでWorkerとStatic Assetsをbuild・previewします。Cloudflare依存を更新してundiciを修正し、sharpも経路を限定して修正版へ更新しています。Stylelint経由のbraces High 1件が未解消のため、全依存監査は未合格です。
