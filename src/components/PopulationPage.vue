@@ -6,7 +6,13 @@ import populationMark from '../assets/population-mark.svg'
   <a class="skip-link" href="#main-content">本文へ移動</a>
   <header class="app-header">
     <div class="header-content">
-      <img :src="populationMark" alt="" width="24" height="24" />
+      <img
+        class="brand-mark"
+        :src="populationMark"
+        alt=""
+        width="24"
+        height="24"
+      />
       <p class="brand">人口推移ビューア</p>
       <p class="header-description">都道府県別データ</p>
     </div>
@@ -14,8 +20,10 @@ import populationMark from '../assets/population-mark.svg'
 
   <main id="main-content" class="main-content" tabindex="-1">
     <div class="page-introduction">
-      <h1>都道府県別の人口推移</h1>
-      <p>都道府県と人口の区分を選んで、変化を比べられます。</p>
+      <h1 class="page-title">都道府県別の人口推移</h1>
+      <p class="page-description">
+        都道府県と人口の区分を選んで、変化を比べられます。
+      </p>
     </div>
 
     <section
@@ -23,10 +31,12 @@ import populationMark from '../assets/population-mark.svg'
       aria-labelledby="prefectures-title"
     >
       <div class="prefectures-heading">
-        <h2 id="prefectures-title">都道府県</h2>
+        <h2 id="prefectures-title" class="section-title">都道府県</h2>
         <slot name="prefecture-actions" />
       </div>
-      <p>比較したい都道府県を選択（複数選択可）</p>
+      <p class="prefectures-description">
+        比較したい都道府県を選択（複数選択可）
+      </p>
       <slot name="prefectures">
         <div class="prefectures-space" aria-hidden="true" />
       </slot>
@@ -34,8 +44,8 @@ import populationMark from '../assets/population-mark.svg'
 
     <section class="content-area population" aria-labelledby="population-title">
       <div class="population-heading">
-        <h2 id="population-title">人口推移</h2>
-        <p>選択した都道府県を同じ区分で比較</p>
+        <h2 id="population-title" class="section-title">人口推移</h2>
+        <p class="population-description">選択した都道府県を同じ区分で比較</p>
       </div>
       <slot name="population">
         <div class="population-space" aria-hidden="true" />
@@ -65,7 +75,7 @@ import populationMark from '../assets/population-mark.svg'
   min-height: 64px;
 }
 
-.header-content img {
+.brand-mark {
   flex-shrink: 0;
 }
 
@@ -92,15 +102,17 @@ import populationMark from '../assets/population-mark.svg'
   gap: var(--space-8);
 }
 
-h1 {
+.page-title {
   font: var(--font-title);
 }
 
-h2 {
+.section-title {
   font: var(--font-section);
 }
 
-.main-content p {
+.page-description,
+.prefectures-description,
+.population-description {
   color: var(--color-text-secondary);
 }
 
@@ -141,7 +153,7 @@ h2 {
   gap: var(--space-4);
 }
 
-.population-heading p {
+.population-description {
   font: var(--font-caption);
 }
 
@@ -194,7 +206,7 @@ h2 {
     display: none;
   }
 
-  h1 {
+  .page-title {
     font: var(--font-title-mobile);
   }
 
