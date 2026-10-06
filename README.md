@@ -31,4 +31,16 @@ pnpm audit --audit-level=high
 
 **2026年10月7日23:08:10（JST）以降**は公開から7日が経つため、待機期間の例外設定を削除できます。`pnpm-workspace.yaml` の `minimumReleaseAgeExclude` を削除した後、frozen installと監査を再確認してください。更新後も別ディレクトリのfrozen install、Chrome表示・HMR、buildを再確認しました。他の依存版は変更していません。
 
-テスト基盤は #15、品質チェックは #16、Cloudflare の公式 Vite plugin・workerd の互換性と実行環境の手順整備は #17 で扱います。現時点の build は Vite の静的成果物を生成します。
+## テスト
+
+インストール済みのGoogle Chromeを使用します。Playwright用ブラウザの追加ダウンロードは不要です。
+
+```sh
+pnpm test
+pnpm test:watch
+pnpm test:e2e
+```
+
+`test`はVitestのnode単体テストとjsdomのVue Test Utilsテスト、`test:e2e`はChromeでの画面テストです。ブラウザテストは5175番で専用serverを自動起動・停止します。失敗時のtraceは`test-results`へ保存されます。
+
+#15では、単体・部品・Chromeの各サンプルの期待値を意図的に誤らせて失敗を確認し、正しい期待値へ戻すと全3件が成功しました。TypeScriptは7.0.2を維持しています。品質チェックは #16、Cloudflare環境は #17 で扱います。
