@@ -150,9 +150,4 @@ TDDで、グラフ用データの作成・API取得（画面側）・API Proxy�
 
 PlaywrightとGoogle Chrome最新版で、PRDの操作、各画面幅、Chart.jsの実描画・更新・破棄を確認する。jsdomでCanvas描画成功を判定しない。実APIとの契約一致はモックとは別に確認する。ESLint・Prettier・Stylelintとvue-tscの型チェックも実行する。
 
-## レビューで確認したい点
-
-- 汎用UI・選択と読み込みの管理・API取得（画面側）・API Proxy・グラフ用データの作成・描画更新という役割分担で、一画面に対して過剰な構成になっていないか。
-- 選択状態を正本とし、画面滞在中の取得結果を再利用する方針で、連続操作時もPRDの振る舞いを維持できるか。
-
 参考：[Vueの状態管理](https://vuejs.org/guide/scaling-up/state-management.html)、[composable](https://vuejs.org/guide/reusability/composables.html)、[Chart.js API](https://www.chartjs.org/docs/latest/developers/api.html)、[Workersの推奨事項](https://developers.cloudflare.com/workers/best-practices/workers-best-practices/)。
