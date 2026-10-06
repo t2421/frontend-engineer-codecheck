@@ -20,7 +20,7 @@ GitHub Actionsで変更を確認し、mainのアプリを必要なときだけCl
 2. Checksが成功し、`production`の承認が必要な場合はその承認が済むと公開します。
 3. 実行ログに出る公開URLで画面と深いSPA URLを確認します。現在のAPI proxyは未実装のため、`/api/*`の404は想定どおりです。
 
-自動公開やPRごとのpreview公開はありません。人口APIのキーは公開用tokenとは別のWorker Secretとして扱います。
+本番は手動公開です。PRのUI Previewは[PR #43](https://github.com/t2421/frontend-engineer-codecheck/pull/43)の専用workflowで扱います（#43のmerge後に有効）。[環境設定・Secrets別作業・公開の完了条件](./CLOUDFLARE_ENVIRONMENT.md)を参照してください。人口APIのキーは公開用tokenとは別のWorker Secretとして扱います。
 
 ## 監査の既知の例外
 

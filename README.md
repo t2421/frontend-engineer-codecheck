@@ -56,3 +56,7 @@ pnpm checkでlint・CSS・整形・型を検査します。[実行手順と監�
 ## CI/CD
 
 `Checks`はPRやmainの変更で、コード・テスト・build・依存の脆弱性を確認します。`Deploy production`はmainから手動で動かし、Checksがすべて成功したらCloudflareへ公開します。[公開に必要なSecrets・操作方法・失敗時の確認](./docs/CI_CD.md)を参照してください。
+
+## Cloudflare環境とPR Preview
+
+[本番・Previewのworkflow、Secretsの別作業、完了条件](./docs/CLOUDFLARE_ENVIRONMENT.md)を参照してください。Issue #27のRate Limitは本番公開承認待ちです。
