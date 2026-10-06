@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "population-viewer",
+  "compatibility_date": "2026-09-26",
+  "send_metrics": false,
+  "assets": {
+    "directory": "./review-assets",
+    "not_found_handling": "none",
+  },
+  "previews": {},
+}
