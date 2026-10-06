@@ -9,17 +9,7 @@ const title: string = '都道府県別人口推移'
   </main>
 </template>
 
-<style>
-:root {
-  font-family: system-ui, sans-serif;
-  color: #1f2937;
-  background: #f8fafc;
-}
-
-body {
-  margin: 0;
-}
-
+<style scoped>
 main {
   max-width: 64rem;
   margin-inline: auto;
@@ -27,11 +17,11 @@ main {
 }
 
 h1 {
-  font-size: clamp(1.5rem, 4vw, 2.5rem);
-  line-height: 1.4;
+  margin-bottom: var(--space-8);
+  font: var(--font-title);
 }
 
 p {
-  line-height: 1.8;
+  color: var(--color-text-secondary);
 }
 </style>
