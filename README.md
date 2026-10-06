@@ -55,4 +55,4 @@ pnpm checkでlint・CSS・整形・型を検査します。[実行手順と監�
 
 ## CI/CD
 
-GitHub ActionsでPRの品質・テスト・buildと全依存監査を実行します。Cloudflareデプロイはmainから手動実行します。[設定・再実行・失敗時の手順](./docs/CI_CD.md)を参照してください。新しい監査指摘や通信失敗はデプロイを停止します。
+`Checks`はPRやmainの変更で、コード・テスト・build・依存の脆弱性を確認します。`Deploy production`はmainから手動で動かし、Checksがすべて成功したらCloudflareへ公開します。[公開に必要なSecrets・操作方法・失敗時の確認](./docs/CI_CD.md)を参照してください。
