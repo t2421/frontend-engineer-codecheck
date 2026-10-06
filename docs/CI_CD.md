@@ -13,7 +13,7 @@ Issue #12のローカル実装です。#17のWorkers環境（PR #31）が前提�
 
 例外の理由は、通常の依存更新で解消できないbracesを含むStylelintを維持し、固定lintパターンに限定して既知リスクを受容するユーザー承認です。管理責任者はrepo管理者`t2421`、見直し日は**2026-10-14**。修正版または依存経路の解消後に例外を削除し再監査します。任意パターンを受け付ける変更時にも再評価します。
 
-Nodeは`.nvmrc`の24.16.0、pnpmは公式Linux x64版12.8.1と公式配布SHA-256を固定しています。全jobはubuntu-24.04、外部Actionsは公式releaseの完全commit SHAです。共通setupはfrozen installのみを行い、既存7日待機・scripts停止・sharp限定override・source-map-js限定例外を変更しません。pnpmの更新時は共通setupのURLとSHAも更新してください。
+Nodeは`.nvmrc`の24.16.0、pnpmは`package.json`の`packageManager: pnpm@12.8.1`に固定しています。公式[`pnpm/action-setup` v6.1.0](https://github.com/pnpm/action-setup/releases/tag/v6.1.0)を完全commit SHAで使用し、`version`を省略して`packageManager`から読み取ります。全jobはubuntu-24.04、外部Actionsは公式releaseの完全commit SHAです。action側の自動依存installとcacheを無効にし、続く明示stepでfrozen installのみを行います。既存7日待機・scripts停止・sharp限定override・source-map-js限定例外は維持します。pnpm更新時は`packageManager`とlockfileを更新し、導入コードにversionを重複指定しません。
 
 PRチェックにdeploy秘密情報を渡しません。権限はcontents:read、checkoutの認証保持は無効、依存キャッシュは使用しません。PlaywrightはCIでtest.onlyを拒否し、失敗traceとHTML reportを7日間artifactに保存します。
 
@@ -58,7 +58,7 @@ Actionsの対象runを開き、`Re-run failed jobs`または`Re-run all jobs`で
 - Chromeの期待値を一時的に誤らせると終了コード1になり、trace.zipとHTML reportが生成されました。元へ戻すと終了コード0になりました。
 - CIモードで一時的なtest.onlyは拒否され、終了コード1になりました。検証用の変更は復元済みです。
 - 例外追加前の全依存監査はbraces High 1件のみで終了コード1。例外追加後は標準監査の終了コード0を確認しました。依存lockは変更していません。
-- CI用pnpm Linux x64配布の公式SHA-256一致と、展開後のpnpm実体のパスを確認しました。
+- 共通setupの手動download・SHA-256検査・展開処理は公式pnpm/action-setupへ置換しました。v6.1.0の公式tagとcommit SHA、pnpm v12対応と`packageManager`読取仕様を確認しています。
 
 GitHub-hosted Ubuntu上の実workflowは未実行です。実deploy、公開先動作確認、production environmentとSecretsの設定も未実施です。
 
