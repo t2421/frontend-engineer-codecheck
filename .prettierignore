@@ -1,0 +1,11 @@
+node_modules/
+dist/
+pnpm-lock.yaml
+playwright-report/
+test-results/
+.vitest/
+# Reviewed documents belong to separate work.
+docs/ADR.md
+docs/DESIGN.md
+docs/DESIGN_LINKS.md
+docs/PRD.md
