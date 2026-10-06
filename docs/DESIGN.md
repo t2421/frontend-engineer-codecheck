@@ -10,8 +10,8 @@
 
 ```mermaid
 flowchart LR
-  UI[Vue SPA] -->|同一オリジン・GET 2本| W[Cloudflare Worker]
-  W -->|固定転送先・APIキー付与| API[課題指定API]
+  UI[Vue SPA] -->|同一オリジン・GET 2本| W[API Proxy]
+  W -->|固定転送先・APIキー付与| API[API]
   A[Workers Static Assets] -->|画面配信| UI
 ```
 
@@ -23,8 +23,8 @@ Vue 3・Vite・TypeScriptの画面とAPI中継を、公式Viteプラグインを
 | --- | --- |
 | 汎用UI | チェックボックス、区分切替、案内・再試行などの表示と操作通知。取得処理や人口の業務判断を持たない。 |
 | 選択と読み込みの管理 | 選択県・人口区分・読み込みや失敗の状態を管理し、操作に応じてデータ取得と表示更新を行うVue composable。 |
-| API取得（画面側） | Workerへデータを要求し、応答を検証して、人口データやエラーを画面で扱いやすい形へ整える。 |
-| API中継（Worker） | 許可した要求だけを指定APIへ送り、APIキーの付与や安全なエラー応答を担う。 |
+| API取得（画面側） | API Proxyへデータを要求し、応答を検証して、人口データやエラーを画面で扱いやすい形へ整える。 |
+| API Proxy | 許可した要求だけを指定APIへ送り、APIキーの付与や安全なエラー応答を担う。 |
 | グラフ用データの作成 | 選択県・人口区分・取得済みの人口データから、グラフに渡すデータを作る。通信や描画は行わず、単独で検証できる。 |
 | グラフの描画・更新 | 小さなコンポーネントでChart.jsのグラフを生成・更新・破棄する。渡されたグラフ用データを表示し、選択や通信は管理しない。 |
 
@@ -48,17 +48,17 @@ sequenceDiagram
   participant UI as 画面
   participant State as 選択と読み込みの管理
   participant Fetch as API取得（画面側）
-  participant Worker as API中継（Worker）
-  participant API as 指定API
+  participant Proxy as API Proxy
+  participant API as API
   User->>UI: 画面を開く
   UI->>State: 初期化
   State-->>UI: 県未選択・総人口・選択案内
   State-->>UI: 一覧読み込み中（操作不可スケルトン）
   State->>Fetch: 都道府県一覧を取得
-  Fetch->>Worker: 都道府県一覧GET
-  Worker->>API: 固定転送先へGET（APIキー付与）
-  API-->>Worker: 都道府県一覧
-  Worker-->>Fetch: 一覧応答
+  Fetch->>Proxy: 都道府県一覧GET
+  Proxy->>API: 固定転送先へGET（APIキー付与）
+  API-->>Proxy: 都道府県一覧
+  Proxy-->>Fetch: 一覧応答
   Fetch-->>State: 検証した一覧
   State->>State: 一覧と取得状態を更新
   State-->>UI: 読み込み終了・チェックボックス表示
@@ -73,8 +73,8 @@ sequenceDiagram
   participant UI as 画面
   participant State as 選択と読み込みの管理
   participant Fetch as API取得（画面側）
-  participant Worker as API中継（Worker）
-  participant API as 指定API
+  participant Proxy as API Proxy
+  participant API as API
   participant Transform as グラフ用データの作成
   participant Chart as グラフの描画・更新
   User->>UI: 県を選択
@@ -86,8 +86,8 @@ sequenceDiagram
   else 未取得
     State-->>UI: 人口読み込み中
     State->>Fetch: 人口構成を取得（県コード）
-    Fetch->>Worker: 人口構成GET（県コード）
-    Worker->>API: 固定転送先へGET（APIキー付与）
+    Fetch->>Proxy: 人口構成GET（県コード）
+    Proxy->>API: 固定転送先へGET（APIキー付与）
     opt 応答前に選択解除
       User->>UI: 県を解除
       UI->>State: 選択集合から除外
@@ -95,8 +95,8 @@ sequenceDiagram
       Transform-->>State: グラフ用データ
       State->>Chart: グラフを更新
     end
-    API-->>Worker: 人口構成
-    Worker-->>Fetch: 人口応答
+    API-->>Proxy: 人口構成
+    Proxy-->>Fetch: 人口応答
     Fetch-->>State: 検証した人口データ
     State->>State: 最新要求の取得状態とデータを更新
     State->>Transform: 現在の選択県・区分・取得済みデータ
@@ -104,7 +104,7 @@ sequenceDiagram
     State->>Chart: グラフを更新
   end
   Note over State,Chart: 解除した県は描画対象に戻さない。全解除は区分維持・選択案内
-  Note over State,Worker: 同じ取得が進行中なら重複要求を出さず、古い応答は状態を上書きしない
+  Note over State,Proxy: 同じ取得が進行中なら重複要求を出さず、古い応答は状態を上書きしない
 ```
 
 ### 人口区分の切替
@@ -134,13 +134,13 @@ sequenceDiagram
   participant UI as 画面
   participant State as 選択と読み込みの管理
   participant Fetch as API取得（画面側）
-  participant Worker as API中継（Worker）
-  participant API as 指定API
+  participant Proxy as API Proxy
+  participant API as API
   State->>Fetch: 一覧または人口構成を取得
-  Fetch->>Worker: 一覧または人口構成GET
-  Worker->>API: 検証済み要求を転送
-  API-->>Worker: エラーまたはタイムアウト
-  Worker-->>Fetch: 安全なエラー応答
+  Fetch->>Proxy: 一覧または人口構成GET
+  Proxy->>API: 検証済み要求を転送
+  API-->>Proxy: エラーまたはタイムアウト
+  Proxy-->>Fetch: 安全なエラー応答
   Fetch-->>State: 画面で扱えるエラー
   State-->>UI: 読み込み解除・失敗表示・再試行操作
   Note over State,API: 内部情報・秘密値を画面に渡さない。画面側の通信・応答検証失敗も失敗状態へ
@@ -148,26 +148,26 @@ sequenceDiagram
   UI->>State: 対象データの再取得
   State-->>UI: 読み込み中
   State->>Fetch: 一覧または人口構成を取得
-  Fetch->>Worker: 一覧または人口構成GET
-  Worker->>API: 検証済み要求を転送
+  Fetch->>Proxy: 一覧または人口構成GET
+  Proxy->>API: 検証済み要求を転送
   alt 成功
-    API-->>Worker: データ
-    Worker-->>Fetch: データ応答
+    API-->>Proxy: データ
+    Proxy-->>Fetch: データ応答
     Fetch-->>State: 検証したデータ
     State->>State: 最新要求の状態を更新
     State-->>UI: 読み込み解除・現在の選択状態に対応する一覧またはグラフ
   else 再び失敗
-    API-->>Worker: エラーまたはタイムアウト
-    Worker-->>Fetch: 安全なエラー応答
+    API-->>Proxy: エラーまたはタイムアウト
+    Proxy-->>Fetch: 安全なエラー応答
     Fetch-->>State: 画面で扱えるエラー
     State-->>UI: 読み込み解除・失敗表示・再試行操作
   end
 ```
 
 
-## API中継とセキュリティ
+## API Proxyとセキュリティ
 
-中継は都道府県一覧と人口構成の固定GET 2本に限定する。メソッド・パス・県コードを検証し、任意URL・不要なパラメータ・ブラウザからの認証ヘッダーを転送しない。上流への通信にはタイムアウトを設け、失敗を画面が扱えるエラーへ変換する。上流の内部情報や秘密値をレスポンス・ログへ出さない。
+API ProxyはCloudflare Worker上で動作し、中継は都道府県一覧と人口構成の固定GET 2本に限定する。メソッド・パス・県コードを検証し、任意URL・不要なパラメータ・ブラウザからの認証ヘッダーを転送しない。上流への通信にはタイムアウトを設け、失敗を画面が扱えるエラーへ変換する。上流の内部情報や秘密値をレスポンス・ログへ出さない。
 
 APIキーは実行時にWorker Secretsへ保持し、CIから設定する場合はGitHub Secretsを利用する。画面の配信物には含めない。公開中継の悪用対策は秘密値の保管とは別に扱い、公開前にアクセス制御・利用量制限を確認する。CI・配備の具体的なトリガーはIssue #12で扱う。
 
@@ -181,13 +181,13 @@ PC・タブレット・スマートフォンで領域の配置とグラフサイ
 
 ## 検証方針
 
-TDDで、グラフ用データの作成・API取得（画面側）・API中継（Worker）・選択と読み込みの管理をVitest、部品の操作と表示をVue Test Utilsで検証する。標準機能のAPIモックを使い、正常・失敗・再試行に加え、解除後の遅延応答と区分切替時の選択維持を確認する。
+TDDで、グラフ用データの作成・API取得（画面側）・API Proxy・選択と読み込みの管理をVitest、部品の操作と表示をVue Test Utilsで検証する。標準機能のAPIモックを使い、正常・失敗・再試行に加え、解除後の遅延応答と区分切替時の選択維持を確認する。
 
 PlaywrightとGoogle Chrome最新版で、PRDの操作、各画面幅、Chart.jsの実描画・更新・破棄を確認する。jsdomでCanvas描画成功を判定しない。実APIとの契約一致はモックとは別に確認する。ESLint・Prettier・Stylelintとvue-tscの型チェックも実行する。
 
 ## レビューで確認したい点
 
-- 汎用UI・選択と読み込みの管理・API取得（画面側）・API中継（Worker）・グラフ用データの作成・描画更新という役割分担で、一画面に対して過剰な構成になっていないか。
+- 汎用UI・選択と読み込みの管理・API取得（画面側）・API Proxy・グラフ用データの作成・描画更新という役割分担で、一画面に対して過剰な構成になっていないか。
 - 選択状態を正本とし、画面滞在中の取得結果を再利用する方針で、連続操作時もPRDの振る舞いを維持できるか。
 
 参考：[Vueの状態管理](https://vuejs.org/guide/scaling-up/state-management.html)、[composable](https://vuejs.org/guide/reusability/composables.html)、[Chart.js API](https://www.chartjs.org/docs/latest/developers/api.html)、[Workersの推奨事項](https://developers.cloudflare.com/workers/best-practices/workers-best-practices/)。
