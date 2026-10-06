@@ -8,3 +8,8 @@ minimumReleaseAgeExclude:
 # GHSA-wq5f-xc86-pv6w: Miniflareの通常更新が修正版を指定したら削除する。
 overrides:
   'miniflare@5.20260926.1-alpha>sharp': '0.35.5'
+# braces High: Stylelint維持をユーザー承認。固定lintパターンに限定しリスクを受容。
+# 管理責任者: repo管理者 t2421。見直し: 2026-10-14（修正版・依存経路を再確認）。
+audit:
+  ignore:
+    - GHSA-vfj7-8cjw-p6xm

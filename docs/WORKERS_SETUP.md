@@ -39,4 +39,4 @@ Cloudflareへのログイン・秘密値・実デプロイは不要です。こ�
 
 再監査では[sharpのGHSA-wq5f-xc86-pv6w](https://github.com/advisories/GHSA-wq5f-xc86-pv6w)（High）も検出しました。Miniflareはsharp 0.35.4を固定しており、最新公開Miniflareも同じ版を指定しています。公式修正版0.35.5は2026-09-27公開で7日経過済みです。`pnpm-workspace.yaml`で`miniflare@5.20260926.1-alpha>sharp`だけ0.35.5へ限定更新しています。Miniflareの通常更新が修正版を指定したら、このoverrideを削除して再検証してください。
 
-[Stylelint経由のbraces High 1件](./QUALITY_CHECKS.md)は未解消で、監査合格は未達です。採用済みStylelintの維持と監査合格を両立する公開済みの通常更新は、現時点で確認できません。ユーザーはStylelintを維持し、このHigh 1件を既知のリスクとしてPRに明記して進めることを承認しました。audit ignore・監査閾値の緩和・検査無効化はありません。品質・テスト・buildの成功と監査未合格を区別してください。
+[Stylelint経由のbraces High 1件](./QUALITY_CHECKS.md)は未解消で、監査合格は未達です。採用済みStylelintの維持と監査合格を両立する公開済みの通常更新は、現時点で確認できません。ユーザーはStylelintを維持し、このHigh 1件を既知のリスクとしてPRに明記して進めることを承認しました。CI導入時の追加承認により、このGHSAだけをpnpm標準の`audit.ignore`で例外にしています。管理責任者はrepo管理者`t2421`、見直し日は2026-10-14です。[例外の理由とCIの失敗条件](./CI_CD.md)を参照してください。監査閾値の緩和・検査無効化はありません。脆弱性の解消と例外付き監査の成功を区別してください。
