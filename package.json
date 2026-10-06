@@ -1,0 +1,19 @@
+{
+  "name": "frontend-engineer-codecheck",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.8.1",
+  "engines": { "node": "24.16.0" },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": { "vue": "3.5.43" },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.9",
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
+  }
+}
