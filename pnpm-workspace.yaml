@@ -5,3 +5,6 @@ savePrefix: ''
 # GHSA-68fv-2mgg-jv7q: ユーザー承認済み。2026-10-07 23:08:09.382 JST以降に削除。
 minimumReleaseAgeExclude:
   - source-map-js@1.2.2
+# GHSA-wq5f-xc86-pv6w: Miniflareの通常更新が修正版を指定したら削除する。
+overrides:
+  'miniflare@5.20260926.1-alpha>sharp': '0.35.5'
