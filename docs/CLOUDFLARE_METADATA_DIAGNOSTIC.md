@@ -13,6 +13,9 @@ Existing environment protection rules still apply. The CLI equivalent is:
 gh workflow run cloudflare-metadata-diagnostic.yml --ref main
 ```
 
+The diagnostic job runs only on `main`, so other branch selections cannot access
+the production credentials through this job.
+
 The script first reads service metadata to discover the default environment, as
 Wrangler does, then reads bindings, routes, custom domains, subdomain status,
 environment metadata and schedules for `population-viewer`. All requests are GETs

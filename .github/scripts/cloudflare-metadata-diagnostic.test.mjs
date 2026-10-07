@@ -182,6 +182,7 @@ test('the standalone workflow is manual, uses existing production secrets and ha
     /pull_request:|push:|workflow_call:|wrangler|pnpm build|deploy\.yml/,
   )
   assert.match(workflow, /environment: production/)
+  assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/)
   assert.match(workflow, /secrets\.CLOUDFLARE_API_TOKEN/)
   assert.match(workflow, /secrets\.CLOUDFLARE_ACCOUNT_ID/)
   assert.doesNotMatch(workflow, /YUMEMI_API_KEY|upload-artifact/)
