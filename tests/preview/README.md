@@ -1,5 +1,5 @@
-# テスト専用の UI 確認ページ
+# テスト用UIページ
 
-このディレクトリの `*.html` はローカル・CI の E2E / アクセシビリティ検証で使用します。PR Preview と production build の公開対象には含まれません。
+`*.html`を開発serverの`/tests/preview/対象.html`で開きます。ローカル・CIのE2E/a11y専用で、PR Preview・本番buildへ含めません。[開発手順](../../docs/DEVELOPMENT.md)を参照してください。
 
-HTML と、そのページだけが使う entry / Vue を同じ場所に置きます。共通の合成テストデータは `tests/fixtures/` に置きます。
+ページ専用entry/Vueはこの場所、合成データは`tests/fixtures/`へ置きます。複数ページで使う`FixtureLayout.vue`は共通の検証レイアウトです。合成loaderとrouteモックは実API疎通を証明しません。
