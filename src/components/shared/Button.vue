@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import './control-label.css'
+import '../../styles/control-label.css'
 defineOptions({ name: 'SharedButton' })
 
 const props = withDefaults(

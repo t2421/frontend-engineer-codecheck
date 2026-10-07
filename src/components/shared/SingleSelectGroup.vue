@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends string | number">
-import './control-label.css'
+import '../../styles/control-label.css'
 import { useId } from 'vue'
 
 // Values must be unique; modelValue must be one of the provided values.
