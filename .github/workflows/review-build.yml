@@ -26,6 +26,8 @@ jobs:
           cache: false
       - run: pnpm install --frozen-lockfile
       - name: Build UI review pages without Worker code
+        env:
+          REVIEW_SHA: ${{ github.event.pull_request.head.sha }}
         run: node .github/scripts/build-review.mjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
