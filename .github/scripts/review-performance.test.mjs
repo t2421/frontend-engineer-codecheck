@@ -5,6 +5,8 @@ import {
   summarize,
   renderComment,
   canUpdate,
+  rateMetric,
+  evaluateProfile,
 } from './review-performance.mjs'
 
 const url = 'https://preview.example/performance/' + 'a'.repeat(40) + '/'
@@ -264,4 +266,89 @@ test('LHCI dependency updates retain YAML config, argparse CLI, UUID and browser
   agent.destroy()
   const lighthouseRequire = createRequire(cliRequire.resolve('lighthouse'))
   assert.equal(typeof lighthouseRequire('puppeteer-core').connect, 'function')
+})
+
+const measured = (lcp = 1000, cls = 0, tbt = 0) => ({
+  status: 'measured',
+  runs: 3,
+  metrics: { lcp, cls, tbt },
+})
+
+test('official reference boundaries use raw medians and device-specific TBT', () => {
+  for (const [metric, profile, good, poor] of [
+    ['lcp', 'desktop', 2500, 4000],
+    ['lcp', 'mobile', 2500, 4000],
+    ['cls', 'desktop', 0.1, 0.25],
+    ['cls', 'mobile', 0.1, 0.25],
+    ['tbt', 'desktop', 150, 350],
+    ['tbt', 'mobile', 200, 600],
+  ]) {
+    assert.equal(rateMetric(metric, 0, profile), '良好')
+    assert.equal(rateMetric(metric, good - 0.000001, profile), '良好')
+    assert.equal(rateMetric(metric, good, profile), '良好')
+    assert.equal(rateMetric(metric, good + 0.000001, profile), '改善が必要')
+    assert.equal(rateMetric(metric, poor - 0.000001, profile), '改善が必要')
+    assert.equal(rateMetric(metric, poor, profile), '改善が必要')
+    assert.equal(rateMetric(metric, poor + 0.000001, profile), '不良')
+    for (const invalid of [undefined, null, NaN, Infinity, -1, '0'])
+      assert.equal(rateMetric(metric, invalid, profile), '判定不可')
+  }
+  assert.equal(rateMetric('tbt', 175, 'desktop'), '改善が必要')
+  assert.equal(rateMetric('tbt', 175, 'mobile'), '良好')
+})
+
+test('profile reference rating uses the worst metric; missing or failed data cannot be good', () => {
+  assert.equal(evaluateProfile(measured(), 'desktop').rating, '良好')
+  assert.equal(
+    evaluateProfile(measured(2600, 0, 0), 'mobile').rating,
+    '改善が必要',
+  )
+  assert.equal(evaluateProfile(measured(2600, 0.3, 0), 'mobile').rating, '不良')
+  for (const invalid of [
+    undefined,
+    { ...measured(), status: 'unmeasured' },
+    { ...measured(), runs: 2 },
+    { ...measured(), metrics: { lcp: 1000, cls: 0 } },
+    measured(NaN),
+    measured(1000, -1),
+    measured(1000, 0, null),
+  ]) {
+    assert.equal(evaluateProfile(invalid, 'desktop').rating, '判定不可')
+  }
+})
+
+test('summary and rows preserve a one-sided failure, evidence and next checks', () => {
+  const comment = renderComment(
+    {
+      sha: 'a'.repeat(40),
+      url,
+      measuredAt: 'now',
+      profiles: {
+        desktop: measured(),
+        mobile: { status: 'unmeasured', reason: 'collection-failed' },
+      },
+    },
+    'https://github.com/owner/repo/actions/runs/1',
+  )
+  assert.match(comment, /結果サマリー: PC 良好／モバイル 判定不可/)
+  assert.match(comment, /\| モバイル \| 判定不可 \| 未計測（判定不可）/)
+  assert.match(comment, /計測エラー・不完全レポート/)
+  assert.match(comment, /次に確認:.*再計測/)
+  assert.match(comment, /実ユーザーの合否やアプリ全体の品質保証/)
+  assert.match(comment, /TBTはCore Web VitalでもINP実測値でもありません/)
+  assert.match(comment, /mergeブロックはありません/)
+  const degraded = renderComment(
+    {
+      sha: 'a'.repeat(40),
+      url,
+      profiles: {
+        desktop: measured(5000, 0.3, 400),
+        mobile: measured(3000, 0.2, 300),
+      },
+    },
+    'https://github.com/owner/repo/actions/runs/1',
+  )
+  assert.match(degraded, /結果サマリー: PC 不良／モバイル 改善が必要/)
+  for (const clue of ['LCP要素', 'レイアウト変動', '長時間タスク'])
+    assert.ok(degraded.includes(clue))
 })

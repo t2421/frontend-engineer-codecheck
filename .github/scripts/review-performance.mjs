@@ -90,33 +90,126 @@ export function canUpdate(pr, sha, repo) {
   )
 }
 
-export function renderComment(result, runUrl) {
-  const rows = profiles.map((profile) => {
-    const data = result.profiles?.[profile]
-    const m = data?.metrics
-    return data?.status === 'measured' &&
-      data.runs === 3 &&
-      ['lcp', 'cls', 'tbt'].every(
-        (key) => Number.isFinite(m?.[key]) && m[key] >= 0,
+const ratingLabels = ['良好', '改善が必要', '不良']
+const metricLabels = { lcp: 'LCP', cls: 'CLS', tbt: 'TBT' }
+const nextChecks = {
+  lcp: 'LCP要素・TTFB・画像/CSSの読み込み',
+  cls: 'レイアウト変動・画像の領域確保・フォント',
+  tbt: 'DevToolsの長時間タスク・JS実行',
+}
+
+// Reference labels for lab medians, never CI assertions or field CWV pass/fail.
+export function rateMetric(metric, value, profile) {
+  if (!profiles.includes(profile) || !Number.isFinite(value) || value < 0)
+    return '判定不可'
+  const limits = {
+    lcp: [2500, 4000],
+    cls: [0.1, 0.25],
+    tbt: profile === 'desktop' ? [150, 350] : [200, 600],
+  }[metric]
+  if (!limits) return '判定不可'
+  return value <= limits[0]
+    ? '良好'
+    : value <= limits[1]
+      ? '改善が必要'
+      : '不良'
+}
+
+export function evaluateProfile(data, profile) {
+  const valid =
+    profiles.includes(profile) &&
+    data?.status === 'measured' &&
+    data.runs === 3 &&
+    Object.keys(audits).every(
+      (key) => Number.isFinite(data.metrics?.[key]) && data.metrics[key] >= 0,
+    )
+  if (!valid)
+    return {
+      valid: false,
+      rating: '判定不可',
+      evidence:
+        data?.reason === 'collection-failed'
+          ? '未計測（計測エラー・不完全レポート）'
+          : '未計測（公開失敗・job未完了・指標欠損・レポートなし）',
+      next: 'Preview公開・Actionsログ・対象URL・レポート完了を確認して再計測',
+    }
+  const ratings = Object.fromEntries(
+    Object.keys(audits).map((key) => [
+      key,
+      rateMetric(key, data.metrics[key], profile),
+    ]),
+  )
+  const rating =
+    ratingLabels[
+      Math.max(
+        ...Object.values(ratings).map((label) => ratingLabels.indexOf(label)),
       )
-      ? `| ${profile === 'desktop' ? 'PC' : 'モバイル'} | ${(m.lcp / 1000).toFixed(2)} s | ${m.cls.toFixed(3)} | ${Math.round(m.tbt)} ms | 3/3 |`
-      : `| ${profile === 'desktop' ? 'PC' : 'モバイル'} | 未計測 | 未計測 | 未計測 | ${data?.reason === 'collection-failed' ? '計測エラー・不完全レポート' : '公開失敗・job未完了・レポートなし'} |`
+    ]
+  const affected = Object.keys(audits).filter((key) => ratings[key] !== '良好')
+  return {
+    valid: true,
+    rating,
+    ratings,
+    evidence: affected.length
+      ? `${affected.map((key) => metricLabels[key]).join('・')}が良好範囲を超過`
+      : '3指標とも良好範囲',
+    next: affected.length
+      ? affected.map((key) => nextChecks[key]).join('、')
+      : '#36で操作時INP・本番API待ちを確認',
+  }
+}
+
+export function renderComment(result, runUrl) {
+  const evaluations = profiles.map((profile) => ({
+    profile,
+    label: profile === 'desktop' ? 'PC' : 'モバイル',
+    data: result.profiles?.[profile],
+    assessment: evaluateProfile(result.profiles?.[profile], profile),
+  }))
+  const rows = evaluations.map(({ label, data, assessment }) => {
+    if (!assessment.valid)
+      return `| ${label} | 判定不可 | 未計測（判定不可） | 未計測（判定不可） | 未計測（判定不可） | 未完了 |`
+    const m = data.metrics
+    return `| ${label} | ${assessment.rating} | ${(m.lcp / 1000).toFixed(2)} s（${assessment.ratings.lcp}） | ${m.cls.toFixed(3)}（${assessment.ratings.cls}） | ${Math.round(m.tbt)} ms（${assessment.ratings.tbt}） | 3/3 |`
   })
+  const summary = evaluations
+    .map(({ label, assessment }) => `${label} ${assessment.rating}`)
+    .join('／')
+  const guidance = evaluations
+    .map(
+      ({ label, assessment }) =>
+        `- ${label}: 根拠: ${assessment.evidence}。次に確認: ${assessment.next}。`,
+    )
+    .join('\n')
   return `${marker}
 ### Preview 性能（参考）
-静的UIのラボ計測。性能閾値によるmergeブロックはありません。
+**結果サマリー: ${summary}。**
+静的UIのラボ参考評価です。実ユーザーの合否やアプリ全体の品質保証を示しません。性能閾値によるmergeブロックはありません。
+
+| 条件 | 参考評価 | LCP中央値 | CLS中央値 | TBT中央値（ラボ参考） | 計測回数／状態 |
+| --- | --- | --- | --- | --- | --- |
+${rows.join('\n')}
+
+${guidance}
+
+評価は丸め前の中央値を用い、各条件で3指標の最も厳しい区分を表示します。1指標でも欠損・失敗・未完了ならその条件は判定不可です。
+
+| 指標 | 良好 | 改善が必要 | 不良 |
+| --- | --- | --- | --- |
+| [LCP](https://web.dev/articles/lcp) | ≤2.5 s | >2.5〜4.0 s | >4.0 s |
+| [CLS](https://web.dev/articles/cls) | ≤0.1 | >0.1〜0.25 | >0.25 |
+| [TBT・PC](https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time) | ≤150 ms | >150〜350 ms | >350 ms |
+| [TBT・モバイル](https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time) | ≤200 ms | >200〜600 ms | >600 ms |
+
+LCP/CLSの公式目安をラボ中央値へ参考適用しています。実ユーザー評価の75パーセンタイルとは異なります。TBTはCore Web VitalでもINP実測値でもありません。
 
 対象commit: \`${result.sha}\`
 対象URL: ${result.url || '未公開'}
 集計日時: ${result.measuredAt}
 
-| 条件 | LCP中央値 | CLS中央値 | TBT中央値 | 計測回数／状態 |
-| --- | --- | --- | --- | --- |
-${rows.join('\n')}
-
 PC: 1350×940、RTT 40 ms / 10240 Kbps / CPU 1倍。モバイル: 412×823、RTT 150 ms / 1638.4 Kbps / CPU 4倍。通信・CPUはsimulate、各runでストレージ・キャッシュをリセット。
 [HTML・JSONレポート／再現条件・ブラウザーとLighthouseの版](${runUrl}) の \`review-performance\` artifactを参照。
-TBTはINPの実測値ではありません。通常LHCIでは操作時INP・実API待ちの完全検証はできません。最終評価は #36 で実施します。
+通常LHCIでは操作時INP・実API待ちの完全検証はできません。最終評価は #36 で実施します。
 `
 }
 

@@ -36,6 +36,23 @@ PR close時の削除が失敗した場合、同じcleanup jobを再実行する�
 新しい公開で古いSHAのパスが消えた場合は失敗扱いにし、別commitの画面を計測しません。
 
 LCP・CLS・TBTは各指標の中央値。閾値assertは設定せず、初期はmergeをブロックしない参考表示です。
+
+コメント冒頭にPC／モバイルの短い結果サマリーを置き、各指標の中央値に「良好／改善が必要／不良」を添えます。
+条件ごとの参考評価は3指標の最も厳しい区分。判定は丸め前の中央値を使い、1指標でも欠損・失敗・3回未完了なら、その条件全体を「判定不可」とします。
+片側だけ成功した場合は、成功側の参考評価と失敗側の判定不可を分けて表示します。
+根拠と次に調べる箇所（LCP要素や読み込み、レイアウト変動、長時間タスク・JS実行）を短く載せます。
+良好でも #36 の操作時INP・本番API待ちの確認は残ります。
+
+| 参考区分                                                                                                   | 良好   | 改善が必要  | 不良   |
+| ---------------------------------------------------------------------------------------------------------- | ------ | ----------- | ------ |
+| [LCP](https://web.dev/articles/lcp)                                                                        | ≤2.5秒 | >2.5〜4秒   | >4秒   |
+| [CLS](https://web.dev/articles/cls)                                                                        | ≤0.1   | >0.1〜0.25  | >0.25  |
+| [TBT（PC）](https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time)       | ≤150ms | >150〜350ms | >350ms |
+| [TBT（モバイル）](https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time) | ≤200ms | >200〜600ms | >600ms |
+
+LCP／CLSの公式目安を静的UIのラボ中央値へ参考適用しており、実ユーザー評価の75パーセンタイルの合否とは区別します。
+TBTはCore Web VitalでもINPの実測値でもありません。参考区分は実ユーザーの合否やアプリ全体の品質保証を示さず、性能評価によるmergeブロックも追加しません。
+
 公開失敗、job未完了、レポート不足、Lighthouse runtime error、URL不一致、無効な数値は「未計測」と理由を表示します。
 `review-performance` Actions artifact（7日間）に各runのHTML・JSON、設定、収集ログ、集計JSONを保存します。
 ブラウザー／Lighthouseの版・実測時刻・実際の設定は集計JSONの `conditions` と元レポートで確認できます。
