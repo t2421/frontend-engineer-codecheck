@@ -1,4 +1,5 @@
 <script setup lang="ts" generic="T extends string | number">
+import '../../styles/control-label.css'
 import { useId } from 'vue'
 
 // Values must be unique; modelValue must be one of the provided values.
@@ -22,7 +23,7 @@ const name = `single-select-${useId()}`
         :checked="modelValue === option.value"
         @change="emit('update:modelValue', option.value)"
       />
-      <span class="option-label">{{ option.label }}</span>
+      <span class="option-label control-label">{{ option.label }}</span>
     </label>
   </div>
 </template>
@@ -57,17 +58,11 @@ const name = `single-select-${useId()}`
 
 .option-label {
   display: flex;
-  align-items: center;
-  justify-content: center;
   min-height: 2.75rem;
   height: 100%;
   padding: var(--space-8);
-  overflow-wrap: anywhere;
-  font: var(--font-label);
   color: var(--color-text-secondary);
-  text-align: center;
   background: var(--color-bg-surface);
-  border-radius: var(--radius-8);
 }
 
 .option input:checked + .option-label {

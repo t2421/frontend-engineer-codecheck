@@ -4,7 +4,7 @@ Issue #9 の部品実装。`src/components/shared/CheckboxSkeleton.vue` は操�
 
 ## デザインと依存
 
-最新mainの `05c8718`（PR #33 マージ済み）から作成。`src/base.css` の色・余白・角丸・文字トークンを参照し、追加依存はない。Figmaの `color-skeleton-base` は既存 `color-disabled-bg` と同値の #e8edf2 のため、既存トークンを利用する。
+最新mainの `05c8718`（PR #33 マージ済み）から作成。`src/styles/base.css` の色・余白・角丸・文字トークンを参照し、追加依存はない。Figmaの `color-skeleton-base` は既存 `color-disabled-bg` と同値の #e8edf2 のため、既存トークンを利用する。
 
 Figma MCPで以下の実値と画像を確認した。
 

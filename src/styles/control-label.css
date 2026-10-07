@@ -1,0 +1,8 @@
+.control-label {
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-8);
+  font: var(--font-label);
+  text-align: center;
+  overflow-wrap: anywhere;
+}

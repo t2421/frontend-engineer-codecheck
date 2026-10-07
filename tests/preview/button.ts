@@ -1,6 +1,6 @@
 import { createApp, defineComponent, h, ref } from 'vue'
 import Button from '../../src/components/shared/Button.vue'
-import '../../src/base.css'
+import '../../src/styles/base.css'
 
 createApp(
   defineComponent({
