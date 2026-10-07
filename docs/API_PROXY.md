@@ -31,6 +31,6 @@
 
 ## 診断とSecrets
 
-上流失敗ログは固定分類`code`、数値`status`、分類済み`responseType`、booleanの`challenge`だけです。Secret・IP・生の本文/header・例外は記録しません。これらの分類から上流のWAF内部設定を断定しません。[実装](../worker/index.ts)を参照してください。
+上流失敗ログには、分類した`code`と数値の`status`だけを記録します。Secret・IP・生の本文/header・例外は記録しません。これらの分類から上流のWAF内部設定を断定しません。[実装](../worker/index.ts)を参照してください。
 
 Secretの設定先と公開時の扱いは[CI/CD](./CI_CD.md#secrets)に、ローカル接続は[開発手順](./DEVELOPMENT.md)にまとめています。モックの成功を実API疎通・値の一致・実環境のRate Limit検証とは扱いません。
