@@ -157,7 +157,7 @@ for (const width of [1440, 768, 390, 320]) {
   })
 }
 
-test('5年/1年刻みの全点とtooltipを保持し、PCは全年度、非PCは両端を表示する', async ({
+test('5年/1年刻みの全点とtooltipを保持し、幅に応じて年ラベルを切り替える', async ({
   page,
 }) => {
   for (const [mode, step] of [
@@ -187,19 +187,13 @@ test('5年/1年刻みの全点とtooltipを保持し、PCは全年度、非PCは
         .toBe(
           width >= 1024 ? width - 210 : width >= 640 ? width - 114 : width - 66,
         )
-      await expect
-        .poll(async () => (await snapshot(page)).xTicks)
-        .toEqual(
-          width >= 1024 ? expected.map((point) => point.x) : [1960, 2020],
-        )
       const current = await snapshot(page)
       expect(current.id).toBe(initial.id)
       expect(current.count).toBe(1)
       expect(current.datasets?.[0]?.data).toEqual(expected)
       expect(current.points).toHaveLength(expected.length)
-      expect(current.xTicks).toEqual(
-        width >= 1024 ? expected.map((point) => point.x) : [1960, 2020],
-      )
+      expect(current.xTicks?.[0]).toBe(1960)
+      expect(current.xTicks?.at(-1)).toBe(2020)
     }
     const canvas = page.locator('canvas')
     await canvas.scrollIntoViewIfNeeded()
@@ -385,7 +379,7 @@ test('県・区分変更で実際の年範囲の端を更新し、推計年も�
   expect((await snapshot(page)).datasets?.[0]?.data).toHaveLength(5)
 })
 
-test('非PCは端年だけ、PCは全年度を表示し、実APIと同じ18点を保持する', async ({
+test('449/450/767/768pxの境界で年ラベルを切り替え、実APIと同じ18点を保持する', async ({
   page,
 }) => {
   const { prefectureResponse, appPopulationResponse } =
@@ -408,7 +402,7 @@ test('非PCは端年だけ、PCは全年度を表示し、実APIと同じ18点�
   await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
   await page.getByRole('checkbox', { name: '北海道', exact: true }).check()
   await expect(page.locator('canvas')).toBeVisible()
-  for (const width of [320, 375, 390, 768, 1023, 1024, 1440]) {
+  for (const width of [320, 449, 450, 600, 767, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1100 })
     await expect
       .poll(async () => (await snapshot(page)).width)
@@ -422,11 +416,16 @@ test('非PCは端年だけ、PCは全年度を表示し、実APIと同じ18点�
     const { xTicks, tickLabels, width: chartWidth } = current
     if (!xTicks || !tickLabels || chartWidth === undefined)
       throw new Error('グラフの目盛りがありません')
-    expect(xTicks).toEqual(
-      width < 1024
-        ? [1960, 2045]
-        : Array.from({ length: 18 }, (_, i) => 1960 + i * 5),
-    )
+    const years = Array.from({ length: 18 }, (_, i) => 1960 + i * 5)
+    if (width < 450) expect(xTicks).toEqual([1960, 2045])
+    else if (width >= 768) expect(xTicks).toEqual(years)
+    else {
+      const alternating = [...years.filter((_, i) => i % 2 === 0), 2045]
+      expect([
+        alternating,
+        alternating.filter((year) => year !== 2040),
+      ]).toContainEqual(xTicks)
+    }
     for (let i = 1; i < tickLabels.length; i++) {
       const previous = tickLabels[i - 1]
       const next = tickLabels[i]

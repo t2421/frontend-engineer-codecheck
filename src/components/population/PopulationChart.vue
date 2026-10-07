@@ -10,6 +10,7 @@ import {
   type Point,
   type ChartOptions,
 } from 'chart.js'
+import { toFont } from 'chart.js/helpers'
 import {
   populationCategories,
   type PopulationCategory,
@@ -107,9 +108,21 @@ function createChartOptions(css: CSSStyleDeclaration): ChartOptions<'line'> {
         type: 'linear',
         bounds: 'data',
         afterBuildTicks(scale) {
+          const ctx = scale.chart.ctx
+          ctx.save()
+          ctx.font = toFont(Chart.defaults.font).string
+          const labelWidth = Math.max(
+            0,
+            ...props.series.flatMap((s) =>
+              s.data.map((p) => ctx.measureText(String(p.year)).width),
+            ),
+          )
+          ctx.restore()
           scale.ticks = yearTicks(
             props.series,
-            matchMedia('(width < 1024px)').matches,
+            innerWidth,
+            scale.width,
+            labelWidth,
           ).map((value) => ({ value }))
         },
         grid: { display: false },

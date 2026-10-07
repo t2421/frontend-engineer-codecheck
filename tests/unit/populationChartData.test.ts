@@ -10,12 +10,12 @@ const withYears = (years: number[]) => [
   { ...series[0]!, data: years.map((year) => ({ year, value: 100 })) },
 ]
 test.each([[2024], [1963, 2057], [1963, 1964, 1979, 2020, 2057]])(
-  'PCは全年度、非PCは両端を表示し、不均一年も元データを変えない: %j',
+  '768px以上は全年度、450px未満は両端を表示し、不均一年も元データを変えない: %j',
   (...years) => {
     const input = withYears(years)
     const original = structuredClone(input)
     expect(yearTicks(input)).toEqual(years)
-    expect(yearTicks(input, true)).toEqual(
+    expect(yearTicks(input, 449)).toEqual(
       years.length < 2 ? years : [years[0], years.at(-1)],
     )
     expect(input).toEqual(original)
@@ -32,11 +32,11 @@ test.each([18, 61, 101])(
     )
   },
 )
-test('県変更で年を重複なく並べ、非PCの両端も再計算する', () => {
+test('県変更で年を重複なく並べ、狭い幅の両端も再計算する', () => {
   const input = [...withYears([1985, 2025]), ...withYears([1963, 1985, 2057])]
   expect(yearTicks(input)).toEqual([1963, 1985, 2025, 2057])
-  expect(yearTicks(input, true)).toEqual([1963, 2057])
-  expect(yearTicks(input.slice(0, 1), true)).toEqual([1985, 2025])
+  expect(yearTicks(input, 449)).toEqual([1963, 2057])
+  expect(yearTicks(input.slice(0, 1), 449)).toEqual([1985, 2025])
   expect(yearTicks([])).toEqual([])
 })
 
@@ -106,4 +106,36 @@ test('47県は固有の固定色、実線、直線補間で描き選択順で色
   expect(
     createPopulationChartData(input.slice(10, 11), colors).datasets[0],
   ).toEqual(forward[10])
+})
+
+test.each([449, 450, 767, 768])(
+  '%dpxの境界で全年度・1つおき・両端を切り替える',
+  (width) => {
+    const years = Array.from({ length: 18 }, (_, i) => 1960 + i * 5)
+    const expected =
+      width < 450
+        ? [1960, 2045]
+        : width < 768
+          ? [...years.filter((_, i) => i % 2 === 0), 2045]
+          : years
+    expect(yearTicks(withYears(years), width)).toEqual(expected)
+  },
+)
+test('中間幅の末尾が近ければ直前だけを省き、最終年と元の18点を保持する', () => {
+  const years = Array.from({ length: 18 }, (_, i) => 1960 + i * 5)
+  const input = withYears(years)
+  expect(yearTicks(input, 450, 320, 27)).toEqual([
+    1960, 1970, 1980, 1990, 2000, 2010, 2020, 2030, 2045,
+  ])
+  expect(yearTicks(input, 767, 650, 27)).toEqual([
+    1960, 1970, 1980, 1990, 2000, 2010, 2020, 2030, 2040, 2045,
+  ])
+  expect(input[0]?.data).toHaveLength(18)
+})
+test('中間幅は実年配列を使い、奇数個・1年・2年でも端年を重複させない', () => {
+  expect(yearTicks(withYears([1963, 1979, 1991, 2031, 2057]), 600)).toEqual([
+    1963, 1991, 2057,
+  ])
+  expect(yearTicks(withYears([2024]), 600)).toEqual([2024])
+  expect(yearTicks(withYears([1963, 2057]), 600)).toEqual([1963, 2057])
 })
