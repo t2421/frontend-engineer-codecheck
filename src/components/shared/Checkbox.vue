@@ -13,9 +13,9 @@ const emit = defineEmits<{
   change: [checked: boolean]
 }>()
 
-function onChange(event: globalThis.Event) {
+function onChange(event: Event) {
   if (props.disabled) return
-  const checked = (event.target as globalThis.HTMLInputElement).checked
+  const checked = (event.target as HTMLInputElement).checked
   emit('update:modelValue', checked)
   emit('change', checked)
 }

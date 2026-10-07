@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { expectNoHorizontalOverflow } from './layout'
 
 for (const width of [1440, 768, 390, 320]) {
   test(`${width}pxで見出しと領域を重ならずに表示する`, async ({ page }) => {
@@ -24,9 +25,7 @@ for (const width of [1440, 768, 390, 320]) {
     expect(second!.y).toBeGreaterThan(first!.y + first!.height)
     expect(first!.x).toBeGreaterThanOrEqual(0)
     expect(first!.x + first!.width).toBeLessThanOrEqual(width)
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth),
-    ).toBe(width)
+    await expectNoHorizontalOverflow(page)
   })
 }
 

@@ -40,7 +40,7 @@ pnpm install --frozen-lockfile
 
 `pnpm test:watch`でVitestを継続実行、`pnpm format`で整形できます。個別コマンドは[package.json](../package.json)を参照してください。
 
-画面テストは専用サーバーを自動で起動・停止し、インストール済みのChromeを使います。詳細は[Playwright設定](../playwright.config.ts)を参照してください。HTMLレポートは`pnpm test:e2e --reporter=list,html`の後、`pnpm exec playwright show-report`で開きます。[a11y手動確認](./ACCESSIBILITY.md)も行ってください。
+画面テストは専用サーバーを自動で起動・停止し、インストール済みのChromeを使います。詳細は[Playwright設定](../playwright.config.ts)を参照してください。HTMLレポートは`pnpm test:e2e --reporter=list,html`の後、`pnpm exec playwright show-report`で開きます。[a11y手動確認](./ACCESSIBILITY.md)も行ってください。実装とテストの書き方は[開発ガイドライン](./GUIDELINES.md)に従います。
 
 ## ローカルpreview
 

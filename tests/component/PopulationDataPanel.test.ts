@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import StatusMessage from '../../src/components/shared/StatusMessage.vue'
 import Button from '../../src/components/shared/Button.vue'
@@ -9,8 +9,6 @@ const prefectures = [
   { prefCode: 1, prefName: '北海道' },
   { prefCode: 13, prefName: '東京都' },
 ]
-const wrappers: ReturnType<typeof mount>[] = []
-afterEach(() => wrappers.splice(0).forEach((w) => w.unmount()))
 function render(
   loader = vi.fn().mockResolvedValue(parsePopulation(populationResponse())),
   selectedPrefectures = prefectures.slice(0, 1),
@@ -21,7 +19,6 @@ function render(
       default: `<template #default="{ series, category }"><output :data-category="category"><section v-for="entry in series" :key="entry.prefCode" :data-pref-code="entry.prefCode"><span>{{ entry.prefName }}</span><span v-for="point in entry.data" :key="point.year" :data-year="point.year" :data-value="point.value"></span></section></output></template>`,
     },
   })
-  wrappers.push(wrapper)
   return { wrapper, loader }
 }
 function populationValue(wrapper: ReturnType<typeof mount>, prefCode: number) {

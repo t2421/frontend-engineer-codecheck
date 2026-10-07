@@ -1,8 +1,6 @@
-import { afterEach, describe, expect, test } from 'vitest'
-import { enableAutoUnmount, mount } from '@vue/test-utils'
+import { describe, expect, test } from 'vitest'
+import { mount } from '@vue/test-utils'
 import Button from '../../src/components/shared/Button.vue'
-
-enableAutoUnmount(afterEach)
 
 describe('Button', () => {
   test('ラベルを表示し、クリックを一度通知する', () => {

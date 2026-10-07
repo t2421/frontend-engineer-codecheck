@@ -22,6 +22,7 @@ pnpm dev
 | 共通CSSの使い方                      | [デザイントークン](./docs/DESIGN_TOKENS.md) |
 | API契約・失敗・診断                  | [API](./docs/API_PROXY.md)                  |
 | 起動・テスト・ローカル閲覧           | [開発](./docs/DEVELOPMENT.md)               |
+| 実装・テストの書き方                 | [開発ガイドライン](./docs/GUIDELINES.md)    |
 | workflow・Preview・本番公開・Secrets | [CI/CD](./docs/CI_CD.md)                    |
 | 依存更新・監査例外                   | [依存管理](./docs/DEPENDENCY_SECURITY.md)   |
 | 自動検査と手動確認                   | [アクセシビリティ](./docs/ACCESSIBILITY.md) |

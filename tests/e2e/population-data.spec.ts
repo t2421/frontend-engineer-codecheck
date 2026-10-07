@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { expectNoHorizontalOverflow } from './layout'
 import { populationResponse } from '../fixtures/population'
 import { captureScreenshot } from './screenshot'
 const api = '**/api/v1/population/composition/perYear?*'
@@ -89,9 +90,7 @@ for (const width of [1440, 768, 390]) {
       await expect(page.getByLabel('後続表示へのデータ')).toContainText(
         '東京都',
       )
-      expect(
-        await page.evaluate(() => document.documentElement.scrollWidth),
-      ).toBe(width)
+      await expectNoHorizontalOverflow(page)
       await captureScreenshot(
         page,
         testInfo,
@@ -203,9 +202,7 @@ test('公開用fixtureは合成データで取得・再試行・遅延応答を�
     true,
   )
   await page.setViewportSize({ width: 390, height: 1000 })
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
-    390,
-  )
+  await expectNoHorizontalOverflow(page)
   await captureScreenshot(
     page,
     testInfo,

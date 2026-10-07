@@ -1,13 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
+import { expectNoHorizontalOverflow } from './layout'
 import { prefectureResponse, appPopulationResponse } from '../fixtures/appApi'
 import { checkAccessibility } from './accessibility'
+import { captureScreenshot } from './screenshot'
 
 async function chartState(page: Page) {
   return page.evaluate(async () => {
     const moduleUrl = performance
       .getEntriesByType('resource')
       .map((e) => e.name)
-      .find((name) => new URL(name).pathname.endsWith('/chart__js.js'))!
+      .find((name) => new URL(name).pathname.endsWith('/chart__js.js'))
+    if (!moduleUrl) throw new Error('Chart.js module was not loaded')
     const { Chart } = (await import(moduleUrl)) as typeof import('chart.js')
     const canvas = document.querySelector('canvas')
     const chart = canvas ? Chart.getChart(canvas) : undefined
@@ -15,7 +18,7 @@ async function chartState(page: Page) {
       count: Object.keys(Chart.instances).length,
       id: chart?.id,
       data: chart?.data.datasets.map((d) => ({ label: d.label, data: d.data })),
-      ticks: chart?.scales.x.ticks.map((t) => t.value),
+      ticks: chart?.scales.x?.ticks.map((t) => t.value),
     }
   })
 }
@@ -45,18 +48,11 @@ for (const width of [1440, 768, 390, 320]) {
     await expect(
       page.getByRole('radio', { name: '総人口', exact: true }),
     ).toBeChecked()
-    await page.screenshot({
-      path: `test-results/app-initial-${width}.png`,
-      fullPage: true,
-    })
+    await captureScreenshot(page, testInfo, `app-initial-${width}.png`, true)
     if (width < 640) {
       await expect(
         page.getByRole('button', { name: '都道府県を選ぶ' }),
       ).toHaveAttribute('aria-expanded', 'false')
-      await page.screenshot({
-        path: `test-results/app-initial-${width}.png`,
-        fullPage: true,
-      })
       await page.getByRole('button', { name: '都道府県を選ぶ' }).focus()
       await page.keyboard.press('Enter')
     }
@@ -99,26 +95,25 @@ for (const width of [1440, 768, 390, 320]) {
     }
     expect(requests).toEqual([1, 13])
     await checkAccessibility(page, testInfo)
-    await page.screenshot({
-      path: `test-results/app-selected-${width}.png`,
-      fullPage: true,
-    })
+    await captureScreenshot(page, testInfo, `app-selected-${width}.png`, true)
     if (width < 640) {
       await page.getByRole('button', { name: '閉じる', exact: true }).click()
       await expect(page.locator('.selection-summary')).toHaveText(
         '北海道、東京都',
       )
       await expect(page.locator('canvas')).toBeVisible()
-      await page.screenshot({
-        path: `test-results/app-selected-collapsed-${width}.png`,
-        fullPage: true,
-      })
+      await captureScreenshot(
+        page,
+        testInfo,
+        `app-selected-collapsed-${width}.png`,
+        true,
+      )
       await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
     }
     await page.getByRole('checkbox', { name: '北海道', exact: true }).uncheck()
-    expect((await chartState(page)).data?.map((d) => d.label)).toEqual([
-      '東京都',
-    ])
+    await expect
+      .poll(async () => (await chartState(page)).data?.map((d) => d.label))
+      .toEqual(['東京都'])
     await page.getByRole('checkbox', { name: '北海道', exact: true }).check()
     expect(requests).toEqual([1, 13])
     // Every API-derived checkbox can contribute a dataset, without recreating Chart.
@@ -126,21 +121,16 @@ for (const width of [1440, 768, 390, 320]) {
       await checkbox.check()
     await expect(page.locator('.chart-legend li')).toHaveCount(47)
     expect(requests).toHaveLength(47)
-    expect((await chartState(page)).id).toBe(initial.id)
-    expect((await chartState(page)).count).toBe(1)
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth),
-    ).toBe(width)
-    await page.screenshot({
-      path: `test-results/app-47-${width}.png`,
-      fullPage: true,
-    })
+    await expect.poll(async () => (await chartState(page)).id).toBe(initial.id)
+    await expect.poll(async () => (await chartState(page)).count).toBe(1)
+    await expectNoHorizontalOverflow(page)
+    await captureScreenshot(page, testInfo, `app-47-${width}.png`, true)
     await page
       .getByRole('button', { name: '選択を解除', exact: true })
       .filter({ visible: true })
       .click()
     await expect(page.locator('canvas')).toHaveCount(0)
-    expect((await chartState(page)).count).toBe(0)
+    await expect.poll(async () => (await chartState(page)).count).toBe(0)
     await checkAccessibility(page, testInfo)
   })
 }
@@ -187,7 +177,7 @@ test('実アプリ: 一覧・人口の失敗、retry、loadingと解除後遅延
     'データを取得できませんでした',
   )
   await page.getByRole('radio', { name: '老年人口', exact: true }).check()
-  await page.screenshot({ path: 'test-results/app-error.png', fullPage: true })
+  await captureScreenshot(page, testInfo, 'app-error.png', true)
   await checkAccessibility(page, testInfo)
   await page.getByRole('button', { name: '再読み込み' }).click()
   await expect(page.locator('canvas')).toHaveAttribute('aria-label', /老年人口/)
@@ -195,10 +185,7 @@ test('実アプリ: 一覧・人口の失敗、retry、loadingと解除後遅延
   await expect(
     page.getByRole('status').filter({ hasText: '人口データを読み込み中' }),
   ).toBeVisible()
-  await page.screenshot({
-    path: 'test-results/app-loading.png',
-    fullPage: true,
-  })
+  await captureScreenshot(page, testInfo, 'app-loading.png', true)
   await checkAccessibility(page, testInfo)
   await page.getByRole('checkbox', { name: '東京都', exact: true }).uncheck()
   await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
@@ -233,10 +220,7 @@ test('一覧取得中は47個の操作不可skeletonと案内を表示する（A
       .getByRole('status')
       .filter({ hasText: '都道府県一覧を読み込んでいます' }),
   ).toBeVisible()
-  await page.screenshot({
-    path: 'test-results/app-list-loading.png',
-    fullPage: true,
-  })
+  await captureScreenshot(page, testInfo, 'app-list-loading.png', true)
   await checkAccessibility(page, testInfo)
   release()
   await expect(page.getByRole('checkbox')).toHaveCount(47)
@@ -314,7 +298,9 @@ for (const width of [1440, 320]) {
       expect(
         (await page.locator('.status-message-compact').boundingBox())!.height,
       ).toBeLessThan(300)
-      expect((await chartState(page)).id).toBe(initial.id)
+      await expect
+        .poll(async () => (await chartState(page)).id)
+        .toBe(initial.id)
       await checkAccessibility(page, testInfo)
       await page
         .getByRole('checkbox', { name: '東京都', exact: true })
@@ -335,11 +321,15 @@ for (const width of [1440, 320]) {
         '東京都',
         '大阪府',
       ])
-      expect((await chartState(page)).id).toBe(initial.id)
-      await page.screenshot({
-        path: `test-results/app-common-state-${width}.png`,
-        fullPage: true,
-      })
+      await expect
+        .poll(async () => (await chartState(page)).id)
+        .toBe(initial.id)
+      await captureScreenshot(
+        page,
+        testInfo,
+        `app-common-state-${width}.png`,
+        true,
+      )
       await checkAccessibility(page, testInfo)
     } finally {
       release()

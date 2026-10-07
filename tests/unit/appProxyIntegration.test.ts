@@ -1,10 +1,8 @@
-import { afterEach, expect, test, vi } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import worker from '../../worker/index'
 import { fetchPrefectures } from '../../src/components/prefectures/prefectureApi'
 import { fetchPopulation } from '../../src/components/population/populationApi'
 import { prefectureResponse, appPopulationResponse } from '../fixtures/appApi'
-
-afterEach(() => vi.unstubAllGlobals())
 
 test('画面API取得→既存Worker→固定上流の契約が一致する（合成応答）', async () => {
   const requests: Request[] = []
