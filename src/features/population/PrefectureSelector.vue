@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, useId } from 'vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onScopeDispose,
+  ref,
+  useId,
+  useTemplateRef,
+} from 'vue'
 import Checkbox from '../../shared/ui/Checkbox.vue'
 import Button from '../../shared/ui/Button.vue'
 import type { Prefecture } from './prefectureApi'
@@ -9,7 +17,33 @@ const props = defineProps<{
   modelValue: readonly number[]
 }>()
 const emit = defineEmits<{ 'update:modelValue': [codes: number[]] }>()
-const expanded = ref(true)
+const viewport = globalThis.matchMedia?.('(width < 640px)')
+const isMobile = ref(viewport?.matches ?? false)
+const mobileExpanded = ref(false)
+const expanded = computed(() => !isMobile.value || mobileExpanded.value)
+const selector = useTemplateRef<globalThis.HTMLElement>('selector')
+async function updateViewport(event: globalThis.MediaQueryListEvent) {
+  const focused = globalThis.document.activeElement
+  const ownsFocus = selector.value?.contains(focused)
+  isMobile.value = event.matches
+  await nextTick()
+  // Move focus only when this resize hides the currently focused operation.
+  if (
+    ownsFocus &&
+    focused instanceof globalThis.HTMLElement &&
+    !focused.getClientRects().length
+  ) {
+    const active = globalThis.document.activeElement
+    if (active !== focused && active !== globalThis.document.body) return
+    selector.value
+      ?.querySelector<globalThis.HTMLElement>(
+        isMobile.value ? '.toggle-list' : 'input[type="checkbox"]',
+      )
+      ?.focus()
+  }
+}
+onMounted(() => viewport?.addEventListener('change', updateViewport))
+onScopeDispose(() => viewport?.removeEventListener('change', updateViewport))
 const listId = useId()
 const selected = computed(() => new Set(props.modelValue))
 const summary = computed(
@@ -32,7 +66,11 @@ function select(code: number, checked: boolean) {
 }
 </script>
 <template>
-  <div class="prefecture-selector" :class="{ 'is-collapsed': !expanded }">
+  <div
+    ref="selector"
+    class="prefecture-selector"
+    :class="{ 'is-collapsed': !expanded, 'is-mobile': isMobile }"
+  >
     <div class="selector-heading">
       <h2 :id="headingId" class="selector-title">都道府県</h2>
       <p class="selection-count" role="status" aria-label="選択件数">
@@ -70,7 +108,7 @@ function select(code: number, checked: boolean) {
         :label="expanded ? '閉じる' : '都道府県を選ぶ'"
         :aria-controls="listId"
         :aria-expanded="expanded"
-        @click="expanded = !expanded"
+        @click="mobileExpanded = !mobileExpanded"
       />
     </div>
   </div>
@@ -171,42 +209,40 @@ function select(code: number, checked: boolean) {
   }
 }
 
-@media (width < 640px) {
-  .selector-heading {
-    min-height: var(--line-height-section);
-  }
+.is-mobile .selector-heading {
+  min-height: var(--line-height-section);
+}
 
-  .desktop-clear {
-    display: none;
-  }
+.is-mobile .desktop-clear {
+  display: none;
+}
 
-  .selector-actions {
-    display: flex;
-  }
+.is-mobile .selector-actions {
+  display: flex;
+}
 
-  .is-collapsed .selector-description {
-    display: none;
-  }
+.is-mobile.is-collapsed .selector-description {
+  display: none;
+}
 
-  .toggle-list {
-    display: inline-flex;
-  }
+.is-mobile .toggle-list {
+  display: inline-flex;
+}
 
-  .selector-actions > * {
-    flex: 1;
-    min-width: 0;
-  }
+.is-mobile .selector-actions > * {
+  flex: 1;
+  min-width: 0;
+}
 
-  .is-collapsed .prefecture-list {
-    display: none;
-  }
+.is-mobile.is-collapsed .prefecture-list {
+  display: none;
+}
 
-  .is-collapsed .selection-summary {
-    display: block;
-  }
+.is-mobile.is-collapsed .selection-summary {
+  display: block;
+}
 
-  .is-collapsed .selector-actions > :first-child {
-    display: none;
-  }
+.is-mobile.is-collapsed .selector-actions > :first-child {
+  display: none;
 }
 </style>

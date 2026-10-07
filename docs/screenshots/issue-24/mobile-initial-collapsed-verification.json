@@ -1,0 +1,33 @@
+{
+  "baseSha": "49558ad50cd096740b2096fb7800946ee0988aea",
+  "scope": "local follow-up captured before commit; synthetic data",
+  "chrome": "154.0.8037.98",
+  "mobileInitialCollapsed": true,
+  "screens": [
+    {
+      "width": 390,
+      "initialCollapsed": true,
+      "selectionAndCountRetained": true,
+      "keyboardToggle": true,
+      "overflow": false,
+      "checkIcon": {
+        "width": 20,
+        "height": 20,
+        "loaded": true
+      }
+    },
+    {
+      "width": 320,
+      "initialCollapsed": true,
+      "selectionAndCountRetained": true,
+      "keyboardToggle": true,
+      "overflow": false,
+      "checkIcon": {
+        "width": 20,
+        "height": 20,
+        "loaded": true
+      }
+    }
+  ],
+  "apiRequests": 0
+}

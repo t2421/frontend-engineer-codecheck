@@ -10,7 +10,7 @@
 | 既存PrefectureSelectorSkeleton・CheckboxSkeleton | statusの文言と47枠                 | 同じ4幅の部品fixture         |
 | 共通Button                                       | ラベル付きボタンの表示・無効状態   | 通常・hover・キーボードfocus |
 
-スケルトンは既存部品の独立fixtureで検査し、アプリの通信中状態を実装したものではない。現時点の初期画面はAPI未接続で、選択案内・県選択・区分切替・通信エラー・再試行・グラフは対象外。既存のスキップリンクとButtonのEnter / Space / Tab操作テストを維持する。
+スケルトンは既存部品の独立fixtureで検査し、アプリの通信中状態を実装したものではない。初期画面は都道府県APIの契約に沿った固定モックで取得完了を待つ。県選択・全解除・スマホ開閉・一覧loading/error/retryは合成fixtureで1440/390/320pxを検査する。最新mainの人口グラフfixtureに対するempty・selected・elder・table・clearedの検査も維持する。実上流通信は自動検査の対象外。既存のスキップリンクとButtonのEnter / Space / Tab操作テストを維持する。
 
 ## 判定と成果物
 
@@ -24,7 +24,7 @@ Checksの`playwright-results`成果物にJSON、HTMLレポート、失敗時trac
 
 ## 機能を追加するとき
 
-`tests/e2e/accessibility.spec.ts`へ状態別ケースを追加する。現在は`page.route('**/api/**')`で実API通信を遮断し、通信がないことを確認する。API接続時はこのガードを、実装したAPIパス・レスポンス形式に対応する固定データのモックへ置き換える。未定のAPI契約をここで先に決めない。
+`tests/e2e/accessibility.spec.ts`へ状態別ケースを追加する。`page.route('**/api/**')`で実API通信を遮断し、`GET /api/v1/prefectures`の成功envelopeを固定モックで返す。未定義のAPI通信はガードで失敗させる。新しいAPI接続時は、実装したパス・レスポンス形式に対応するモックを追加する。未定のAPI契約をここで先に決めない。
 
 - 未選択・全解除: 県一覧と案内の表示を待って検査する。
 - 一覧／人口loading: route応答を保留し、status表示後に検査する。固定時間のsleepに依存しない。
