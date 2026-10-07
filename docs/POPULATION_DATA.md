@@ -16,11 +16,13 @@
 
 ## 依存機能
 
-最新main `2867e3c`から独立worktreeを作成した。リポジトリ内にAGENTS.md・関連.agents/skillsはなかった。
+初回main `2867e3c`から独立worktreeを作成した。現在はPR40・PR39マージ済みmain `def3165`を取り込んでいる。リポジトリ内にAGENTS.md・関連.agents/skillsはなかった。
 
-**#7 / PR39は未マージ**（確認時draft、head `651083d570575499f4c37d63918376daa8081c5e`）。`src/shared/ui/SingleSelectGroup.vue`はそのheadから変更せず取り込んだ依存ファイルで、#25で新たに単一選択部品を実装したものではない。PR39マージ時は既存ファイルをそのまま使用する。
+**#7 / PR39はマージ済み**（main `def3165332b6c4e869fb5b6cf7cfb3407d9d9143`）。`SingleSelectGroup.vue`はmainの共通部品をそのまま使用し、mainとの差分はない。初回にPR39から無変更で取り込んだ依存差分は解消済み。
 
-**#24は未実装**。都道府県一覧取得・一覧UIは作成していない。Appのpropsと、`tests/fixtures/population-data.html`の検証専用2県入力で独立検証する。#24側の選択配列をこの入力へ接続する作業が残る。検証用チェックボックス・JSON出力はアプリ配信物に含まれない。
+**#8 / PR40はマージ済み**（main `75aea1d`）。未選択・読み込み・失敗はmainの共通`StatusMessage`を使い、action slotへ共通`Button`を渡す。共通部品自体は変更しない。
+
+**#24は未実装**。都道府県一覧取得・一覧UIは作成していない。Appのpropsと、`tests/e2e/fixtures/population-data.html`の検証専用2県入力で独立検証する。#24側の選択配列をこの入力へ接続する作業が残る。検証用チェックボックス・JSON出力はアプリ配信物に含まれない。
 
 **#45は別タスクでローカル実装済み**。Workerには変更を加えていない。#45の記録と、下記パス・成功時envelope・失敗時HTTP statusの整合を確認した。
 
@@ -53,6 +55,12 @@
 
 PR40はmain `75aea1d85a04482a18610963133a6b5860ca1dc2`へマージ済み。このmainをPR47のブランチへ競合なく取り込んだ（merge commit・追加pushは未実施）。`PopulationDataPanel`の独自状態マークアップ・CSS・3アイコンを削除し、共通`StatusMessage`のstate/title/descriptionを使用する。失敗時のaction slotへ既存の共通`Button`を渡し、通信・県選択・キャッシュ・再試行ロジックは変更しない。読み上げ領域は共通部品のbusy領域の外に配置される。
 
-追加した部品結合テストの未置換時失敗を確認後に実装し、全Vitest **47件**、Chrome E2E **16件**、`pnpm check`（lint・styles・format・typecheck）、Worker/client build、`git diff --check`が成功。選択維持・取得再利用・失敗からの再試行・解除後遅延応答の既存テストも成功した。未選択・読み込み・失敗のキャプチャを共通部品表示で更新し、目視確認した。今回のローカル変更ではcommit・push・Preview更新を行っていない。
+追加した部品結合テストの未置換時失敗を確認後に実装し、全Vitest **47件**、Chrome E2E **16件**、`pnpm check`（lint・styles・format・typecheck）、Worker/client build、`git diff --check`が成功。選択維持・取得再利用・失敗からの再試行・解除後遅延応答の既存テストも成功した。未選択・読み込み・失敗のキャプチャを共通部品表示で更新し、目視確認した。この置換直後の検証時点ではcommit・push・Preview更新を行わず、結果を共有した。
 
-最新mainのReview assetsは`tests/e2e/fixtures`を公開する。#25の取得検証fixtureは引き続き`tests/fixtures/population-data.html`のため、次回Preview更新で#25の検証ページを公開対象にする場合は、entryの配置を既存公開規約へ揃える作業が必要になる。これは今回の状態表示置換とは別の残件として、push前に共有する。
+## 承認済みPR更新と確認fixture
+
+確認ページのentryを`tests/e2e/fixtures/population-data.html`へ移し、既存Review assetsの公開対象へ揃えた。公開ページは合成データを注入し、実APIへ通信せず、県選択・区分切替・キャッシュ・取得回数、次の取得の失敗/再試行・遅延応答を操作できる。画面にも合成データである旨を明記する。後続データのJSON出力は確認fixtureだけの表示。
+
+`?mode=proxy`はPlaywright routeのAPIモック検証専用。既存の5件はこのモードで取得関数・HTTP失敗・遅延応答を検証し、追加1件は既定の合成データモードで失敗・再試行・遅延応答とAPI通信ゼロを検証する。どちらも実API疎通を証明しない。
+
+最新main `def3165`との整合後、Vitest **52件**・Chrome **19件**・check・通常buildが成功。review buildで人口確認ページが成果物に含まれることも確認した。依存・lockfile・Worker・共通部品に#25固有の差分はない。承認に基づき日本語commit・pushと既存workflowによるPreview更新へ進める。本番公開・PRmergeは行わない。

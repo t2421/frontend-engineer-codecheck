@@ -119,6 +119,7 @@ test('解除後の遅延応答で表示県が復活しない（APIモック）',
 test('公開用fixtureは合成データで取得・再試行・遅延応答を確認でき、APIへ通信しない', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
   const requests: string[] = []
   page.on('request', (request) => {
     if (new URL(request.url()).pathname.startsWith('/api/'))
@@ -159,4 +160,16 @@ test('公開用fixtureは合成データで取得・再試行・遅延応答を�
   )
   await expect(page.getByLabel('合成データ取得回数')).toHaveText('3')
   expect(requests).toEqual([])
+  await page.screenshot({
+    path: 'test-results/population-synthetic-desktop.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 390, height: 1000 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  )
+  await page.screenshot({
+    path: 'test-results/population-synthetic-mobile.png',
+    fullPage: true,
+  })
 })
