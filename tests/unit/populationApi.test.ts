@@ -12,6 +12,7 @@ test('全区分を県単位の同一オリジンGETから取得する', async ()
   const result = await fetchPopulation(1, fetcher)
   expect(fetcher).toHaveBeenCalledExactlyOnceWith(
     '/api/v1/population/composition/perYear?prefCode=1',
+    { method: 'GET', signal: expect.any(AbortSignal) },
   )
   expect(result.categories.working).toEqual([
     { year: 2020, value: 102, rate: 20 },
@@ -67,5 +68,25 @@ test('HTTP失敗・JSON不正・通信失敗は安全なエラーにする', asy
     await expect(fetchPopulation(1, fetcher)).rejects.toThrow(
       '人口データを取得できませんでした',
     )
+  }
+})
+
+test('人口取得にも15秒のタイムアウトを設け、GET以外の情報を送らない', async () => {
+  const timeout = vi.spyOn(AbortSignal, 'timeout')
+  const fetcher = vi
+    .fn()
+    .mockResolvedValue(new Response(JSON.stringify(populationResponse())))
+  try {
+    await fetchPopulation(13, fetcher)
+    expect(timeout).toHaveBeenCalledWith(15000)
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/v1/population/composition/perYear?prefCode=13',
+      {
+        method: 'GET',
+        signal: expect.any(AbortSignal),
+      },
+    )
+  } finally {
+    timeout.mockRestore()
   }
 })

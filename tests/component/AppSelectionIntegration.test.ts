@@ -43,3 +43,30 @@ test('県選択をmainの人口区分UIへ渡し、区分変更・全解除で�
     wrapper.unmount()
   }
 })
+
+test('全体確認用loaderを既存人口パネルへ渡し、選択した県だけ取得する', async () => {
+  const { parsePopulation } =
+    await import('../../src/features/population/populationApi')
+  const populationLoader = vi
+    .fn()
+    .mockResolvedValue(parsePopulation(populationResponse()))
+  const wrapper = mount(App, {
+    props: {
+      prefectureLoader: () =>
+        Promise.resolve([{ prefCode: 13, prefName: '東京都' }]),
+      populationLoader,
+    },
+    global: { stubs: { PopulationChart: true } },
+  })
+  try {
+    await flushPromises()
+    expect(populationLoader).not.toHaveBeenCalled()
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await flushPromises()
+    expect(populationLoader).toHaveBeenCalledExactlyOnceWith(13)
+    await wrapper.get('input[value="elder"]').setValue()
+    expect(populationLoader).toHaveBeenCalledTimes(1)
+  } finally {
+    wrapper.unmount()
+  }
+})

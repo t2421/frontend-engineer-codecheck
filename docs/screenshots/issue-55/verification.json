@@ -1,0 +1,49 @@
+{
+  "environment": "Mac arm64 / Node 24.16.0 / pnpm 12.8.1 / installed Google Chrome",
+  "main": "ad864de",
+  "dependencyPR58": "0266ca1d7eea47541dc9a0f21996a10f9e755f1f",
+  "data": "API route mocks and synthetic fixtures; no real API success claimed",
+  "fullBrowser": 86,
+  "unitComponent": 158,
+  "reviewScripts": 25,
+  "axe": [
+    {
+      "test": "app-integration-768px-実アプリ全体の47県・4区分・cache・描画・a11y（APIモック）",
+      "violations": 0,
+      "incomplete": 0
+    },
+    {
+      "test": "app-integration-320px-実アプリ全体の47県・4区分・cache・描画・a11y（APIモック）",
+      "violations": 0,
+      "incomplete": 0
+    },
+    {
+      "test": "app-integration-一覧取得中は47個の操作不可skeletonと案内を表示する（APIモック）",
+      "violations": 0,
+      "incomplete": 0
+    },
+    {
+      "test": "app-integration-1440px-実アプリ全体の47県・4区分・cache・描画・a11y（APIモック）",
+      "violations": 0,
+      "incomplete": 0
+    },
+    {
+      "test": "app-integration-実アプリ-一覧・人口の失敗、retry、loadingと解除後遅延応答（APIモック）",
+      "violations": 0,
+      "incomplete": 0
+    },
+    {
+      "test": "app-integration-390px-実アプリ全体の47県・4区分・cache・描画・a11y（APIモック）",
+      "violations": 0,
+      "incomplete": 0
+    }
+  ],
+  "dependencyFinalInitialA11y": 4,
+  "quality": "ESLint, Stylelint, Prettier, vue-tsc: passed",
+  "build": "SPA/Worker and UI Preview: passed",
+  "publicProxyProbe": {
+    "path": "/api/v1/prefectures",
+    "status": 404,
+    "populationRequested": false
+  }
+}

@@ -90,6 +90,7 @@ export async function fetchPopulation(
   try {
     const response = await fetcher(
       `/api/v1/population/composition/perYear?prefCode=${prefCode}`,
+      { method: 'GET', signal: AbortSignal.timeout(15000) },
     )
     if (!response.ok) throw failure()
     return parsePopulation(await response.json())
