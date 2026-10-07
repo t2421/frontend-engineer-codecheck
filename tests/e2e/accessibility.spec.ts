@@ -3,11 +3,11 @@ import { checkAccessibility } from './accessibility'
 import { readFile } from 'node:fs/promises'
 
 test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
-  const apiRequests: string[] = []
+  const unhandledApiRequests: string[] = []
 
   test.beforeEach(async ({ page }) => {
-    apiRequests.length = 0
-    // Mock the implemented prefecture API; reject every other upstream request.
+    unhandledApiRequests.length = 0
+    // Only the implemented prefecture contract is mocked. Never use real upstreams or Secrets.
     await page.route('**/api/**', async (route) => {
       if (
         new URL(route.request().url()).pathname === '/api/v1/prefectures' &&
@@ -21,15 +21,15 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
         })
         return
       }
-      apiRequests.push(route.request().url())
+      unhandledApiRequests.push(route.request().url())
       await route.fulfill({ status: 404, json: { message: 'Not implemented' } })
     })
   })
 
   test.afterEach(() => {
-    // New API-connected states need explicit response fixtures.
+    // New API-connected states must define their response fixtures explicitly.
     expect(
-      apiRequests,
+      unhandledApiRequests,
       '未定義のAPI通信が追加されたら状態モックを更新する',
     ).toEqual([])
   })
@@ -97,9 +97,12 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
       await expect(
         page.getByRole('region', { name: '人口推移', exact: true }),
       ).toBeVisible()
-      await expect(
-        page.getByRole('checkbox', { name: '検査用東京都' }),
-      ).toBeVisible()
+      await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
+        '0 / 1 選択中',
+      )
+      const prefecture = page.getByRole('checkbox', { name: '検査用東京都' })
+      if (width >= 640) await expect(prefecture).toBeVisible()
+      else await expect(prefecture).toHaveCount(0)
       await checkAccessibility(page, testInfo)
     })
 
@@ -112,6 +115,61 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
       await expect(page.locator('.checkbox-skeleton')).toHaveCount(47)
       await checkAccessibility(page, testInfo)
     })
+  }
+
+  for (const width of [1440, 390, 320]) {
+    test(`県選択・全解除・開閉 ${width}px（合成fixture）`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 })
+      await page.goto('/tests/e2e/fixtures/prefecture-selection.html')
+      await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
+        '0 / 47 選択中',
+      )
+      if (width < 640) {
+        await checkAccessibility(page, testInfo)
+        await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
+      }
+      await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
+      await checkAccessibility(page, testInfo)
+      if (width < 640) {
+        await page.getByRole('button', { name: '閉じる', exact: true }).click()
+        await expect(page.getByRole('checkbox')).toHaveCount(0)
+        await checkAccessibility(page, testInfo)
+        await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
+      }
+      await page.getByRole('button', { name: '選択を解除' }).click()
+      await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
+        '0 / 47 選択中',
+      )
+      await checkAccessibility(page, testInfo)
+    })
+    for (const mode of ['loading', 'error']) {
+      test(`県一覧${mode}・復帰 ${width}px（合成fixture）`, async ({
+        page,
+      }, testInfo) => {
+        await page.setViewportSize({ width, height: 1000 })
+        await page.goto(
+          `/tests/e2e/fixtures/prefecture-selection.html?mode=${mode}`,
+        )
+        if (mode === 'loading')
+          await expect(page.locator('.checkbox-skeleton')).toHaveCount(47)
+        else
+          await expect(page.getByRole('alert')).toContainText(
+            '都道府県一覧を取得できませんでした',
+          )
+        await checkAccessibility(page, testInfo)
+        await page
+          .getByRole('button', {
+            name: mode === 'loading' ? '合成応答を返す' : '再読み込み',
+          })
+          .click()
+        await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
+          '0 / 47 選択中',
+        )
+        await checkAccessibility(page, testInfo)
+      })
+    }
   }
 
   for (const state of ['通常・無効', 'hover', 'focus']) {
