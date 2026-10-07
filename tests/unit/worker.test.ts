@@ -247,3 +247,16 @@ test('rejects reflected Secrets containing JSON special characters', async () =>
   expect(response.status).toBe(502)
   expect(await response.json()).toEqual({ error: 'UPSTREAM_ERROR' })
 })
+
+test('rate rejection precedes method, query and Secret validation', async () => {
+  limit.mockResolvedValue({ success: false })
+  const response = await worker.fetch(
+    request('/api/unknown?url=https://attacker.test', 'POST'),
+    {
+      API_RATE_LIMITER: { limit },
+    },
+  )
+  expect(response.status).toBe(429)
+  expect(await response.json()).toEqual({ error: 'RATE_LIMITED' })
+  expect(upstream).not.toHaveBeenCalled()
+})
