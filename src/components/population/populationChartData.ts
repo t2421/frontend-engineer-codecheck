@@ -1,43 +1,18 @@
 import type { ChartData, Point } from 'chart.js'
 import type { PopulationSeries } from './populationApi'
 
-// 末尾だけ詰まらないよう、両端を含む全区間を均等に分割する。
+// PC以外ではラベルが重ならないよう、実データの両端だけを表示する。
 export function yearTicks(
   series: readonly PopulationSeries[],
-  width: number,
-  labelWidth: number,
   endpointsOnly = false,
 ) {
   const years = [
     ...new Set(series.flatMap((s) => s.data.map((p) => p.year))),
   ].sort((a, b) => a - b)
-  if (years.length < 2) return years
+  if (!endpointsOnly || years.length < 2) return years
   const first = years[0]
   const last = years.at(-1)
-  if (first === undefined || last === undefined) return years
-  if (endpointsOnly) return [first, last]
-  const gap = labelWidth + 16
-  const availableWidth = Math.max(0, width - labelWidth)
-  const distance = (a: number, b: number) =>
-    ((b - a) / (last - first)) * availableWidth
-  const maxCount = Math.min(
-    years.length,
-    Math.max(2, Math.floor(availableWidth / gap) + 1),
-  )
-  for (let count = maxCount; count > 2; count--) {
-    const ticks = Array.from(
-      { length: count },
-      (_, i) => years[Math.round((i * (years.length - 1)) / (count - 1))],
-    ).filter((year): year is number => year !== undefined)
-    if (
-      ticks.slice(1).every((year, i) => {
-        const previous = ticks[i]
-        return previous !== undefined && distance(previous, year) >= gap
-      })
-    )
-      return ticks
-  }
-  return [first, last]
+  return first === undefined || last === undefined ? years : [first, last]
 }
 
 // Assign one fixed color token per prefecture, independent of selection order.

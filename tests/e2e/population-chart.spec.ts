@@ -157,7 +157,7 @@ for (const width of [1440, 768, 390, 320]) {
   })
 }
 
-test('5年/1年刻みの全点とtooltipを保持し、resize後も端と重ならないラベルを表示する', async ({
+test('5年/1年刻みの全点とtooltipを保持し、PCは全年度、非PCは両端を表示する', async ({
   page,
 }) => {
   for (const [mode, step] of [
@@ -187,11 +187,19 @@ test('5年/1年刻みの全点とtooltipを保持し、resize後も端と重な�
         .toBe(
           width >= 1024 ? width - 210 : width >= 640 ? width - 114 : width - 66,
         )
+      await expect
+        .poll(async () => (await snapshot(page)).xTicks)
+        .toEqual(
+          width >= 1024 ? expected.map((point) => point.x) : [1960, 2020],
+        )
       const current = await snapshot(page)
       expect(current.id).toBe(initial.id)
       expect(current.count).toBe(1)
       expect(current.datasets?.[0]?.data).toEqual(expected)
       expect(current.points).toHaveLength(expected.length)
+      expect(current.xTicks).toEqual(
+        width >= 1024 ? expected.map((point) => point.x) : [1960, 2020],
+      )
     }
     const canvas = page.locator('canvas')
     await canvas.scrollIntoViewIfNeeded()
@@ -414,11 +422,10 @@ test('非PCは端年だけ、PCは全年度を表示し、実APIと同じ18点�
     const { xTicks, tickLabels, width: chartWidth } = current
     if (!xTicks || !tickLabels || chartWidth === undefined)
       throw new Error('グラフの目盛りがありません')
-    const intervals = current
-      .xTicks!.slice(1)
-      .map((year, i) => (year - (xTicks[i] ?? year)) / 5)
-    expect(Math.max(...intervals) - Math.min(...intervals)).toBeLessThanOrEqual(
-      1,
+    expect(xTicks).toEqual(
+      width < 1024
+        ? [1960, 2045]
+        : Array.from({ length: 18 }, (_, i) => 1960 + i * 5),
     )
     for (let i = 1; i < tickLabels.length; i++) {
       const previous = tickLabels[i - 1]
