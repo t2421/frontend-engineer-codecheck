@@ -87,6 +87,8 @@ jobs:
     if: always() && needs.identify.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 12
+    outputs:
+      summary: ${{ steps.collect.outputs.summary }}
     permissions:
       contents: read
     steps:
@@ -106,19 +108,13 @@ jobs:
       - name: Install Google Chrome
         if: needs.publish.result == 'success'
         run: pnpm exec playwright install --with-deps chrome
-      - name: Collect reference Lighthouse reports
+      - id: collect
+        name: Collect reference Lighthouse summary
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PREVIEW_URL: ${{ needs.publish.outputs.app-url }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
         run: node .github/scripts/review-performance.mjs collect
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: review-performance
-          path: performance-results/
-          if-no-files-found: warn
-          retention-days: 7
   performance-comment:
     needs: [identify, publish, measure]
     if: always() && needs.identify.result == 'success'
@@ -129,10 +125,9 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
-      actions: read
       pull-requests: write
     steps:
-      # Never checkout PR code or install/execute artifact content in this write job.
+      # Trusted main code parses bounded summary JSON from env; never executes PR data.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -140,12 +135,6 @@ jobs:
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
-      - name: Download report data (missing means unmeasured)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: gh run download "${{ github.run_id }}" --name review-performance --dir performance-results
-        continue-on-error: true
       - name: Update only the current head's Preview and performance comments
         env:
           GH_TOKEN: ${{ github.token }}
@@ -153,6 +142,7 @@ jobs:
           PR_NUMBER: ${{ needs.identify.outputs.number }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PREVIEW_URL: ${{ needs.publish.outputs.app-url }}
+          PERFORMANCE_SUMMARY: ${{ needs.measure.outputs.summary }}
           PREVIEW_BASE_URL: ${{ needs.publish.outputs.base-url }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
         run: node .github/scripts/review-performance.mjs comment

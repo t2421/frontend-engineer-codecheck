@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { Buffer } from 'node:buffer'
 import {
   collectionConfig,
   summarize,
@@ -7,6 +8,8 @@ import {
   canUpdate,
   rateMetric,
   evaluateProfile,
+  serializeSummary,
+  parseSummary,
 } from './review-performance.mjs'
 
 const url = 'https://preview.example/performance/' + 'a'.repeat(40) + '/'
@@ -98,20 +101,18 @@ async function runComment({
   const directory = await mkdtemp(join(tmpdir(), 'review-comment-test-'))
   const sha = 'a'.repeat(40)
   await mkdir(join(directory, 'performance-results'))
-  if (!missing)
-    await writeFile(
-      join(directory, 'performance-results/summary.json'),
-      JSON.stringify({
-        sha: wrongSha ? 'b'.repeat(40) : sha,
+  const summary = JSON.stringify({
+    sha: wrongSha ? 'b'.repeat(40) : sha,
+    url,
+    profiles: {
+      desktop: summarize(
+        [report(1000, 0, 0), report(2000, 0, 0), report(3000, 0, 0)],
         url,
-        profiles: {
-          desktop: summarize(
-            [report(1000, 0, 0), report(2000, 0, 0), report(3000, 0, 0)],
-            url,
-          ),
-        },
-      }),
-    )
+      ),
+    },
+  })
+  // An old local file must never replace missing job output.
+  await writeFile(join(directory, 'performance-results/summary.json'), summary)
   const stateFile = join(directory, 'state.json')
   await writeFile(
     stateFile,
@@ -147,6 +148,7 @@ fs.writeFileSync(process.env.STUB_STATE, JSON.stringify(state));
       PR_NUMBER: '49',
       HEAD_SHA: sha,
       PREVIEW_URL: url,
+      PERFORMANCE_SUMMARY: missing ? '' : summary,
       GITHUB_RUN_ID: '123',
       GITHUB_SERVER_URL: 'https://github.com',
       PUBLISH_RESULT: preview ? 'success' : 'failure',
@@ -189,7 +191,7 @@ test('comment CLI skips stale head including a head change just before update', 
   assert.equal(raced.writes.length, 0)
 })
 
-test('missing artifact and failed publish explicitly remain unmeasured', async () => {
+test('missing summary output and failed publish explicitly remain unmeasured', async () => {
   assert.match(
     (await runComment({ missing: true })).writes[0].data.body,
     /未計測/,
@@ -209,6 +211,7 @@ test('missing artifact and failed publish explicitly remain unmeasured', async (
       PUBLISH_RESULT: 'failure',
       HEAD_SHA: 'a'.repeat(40),
       PREVIEW_URL: '',
+      GITHUB_OUTPUT: join(directory, 'job-output'),
     },
   })
   assert.equal(run.status, 0, run.stderr)
@@ -218,6 +221,8 @@ test('missing artifact and failed publish explicitly remain unmeasured', async (
   const summary = JSON.parse(
     await readFile(join(directory, 'performance-results/summary.json'), 'utf8'),
   )
+  const jobOutput = await readFile(join(directory, 'job-output'), 'utf8')
+  assert.equal(jobOutput, `summary=${JSON.stringify(summary)}\n`)
   for (const profile of ['desktop', 'mobile'])
     assert.deepEqual(summary.profiles[profile], {
       status: 'unmeasured',
@@ -351,4 +356,114 @@ test('summary and rows preserve a one-sided failure, evidence and next checks', 
   assert.match(degraded, /結果サマリー: PC 不良／モバイル 改善が必要/)
   for (const clue of ['LCP要素', 'レイアウト変動', '長時間タスク'])
     assert.ok(degraded.includes(clue))
+})
+
+test('bounded output allows only metrics and sanitized run metadata; invalid transport fails closed', () => {
+  const sha = 'a'.repeat(40)
+  const condition = {
+    measuredAt: '2026-10-07T00:00:00Z',
+    lighthouse: '12.6.1',
+    browser: 'Mozilla Chrome/123.4 $(touch /tmp/untrusted)',
+    settings: { secret: 'discard' },
+  }
+  const result = {
+    sha,
+    url,
+    measuredAt: condition.measuredAt,
+    profiles: {
+      desktop: {
+        ...measured(),
+        conditions: Array(10).fill(condition),
+        injected: 'discard',
+      },
+    },
+  }
+  const encoded = serializeSummary(result)
+  assert.ok(Buffer.byteLength(encoded) < 16384)
+  assert.equal(encoded.includes('\n'), false)
+  assert.doesNotMatch(encoded, /discard|touch|secret|injected/)
+  const parsed = parseSummary(encoded, sha, url)
+  assert.equal(parsed.profiles.desktop.conditions.length, 3)
+  assert.equal(parsed.profiles.desktop.conditions[0].browser, 'Chrome/123.4')
+  assert.equal(parsed.profiles.desktop.conditions[0].lighthouse, '12.6.1')
+  assert.equal(parsed.profiles.mobile.status, 'unmeasured')
+  for (const invalid of [
+    '',
+    '{',
+    ' '.repeat(16385),
+    'null',
+    JSON.stringify({ ...result, sha: 'b'.repeat(40) }),
+    JSON.stringify({ ...result, url: url + 'wrong' }),
+  ]) {
+    assert.equal(parseSummary(invalid, sha, url), null)
+  }
+  assert.throws(
+    () => serializeSummary({ ...result, url: 'x'.repeat(16385) }),
+    /size limit/,
+  )
+  result.profiles.desktop.conditions = [
+    { measuredAt: 'bad', lighthouse: '12.6.1\n$(command)', browser: 'bad' },
+  ]
+  const sanitized = parseSummary(serializeSummary(result), sha, url)
+  assert.deepEqual(sanitized.profiles.desktop.conditions[0], {
+    measuredAt: '不明',
+    lighthouse: '不明',
+    browser: '不明',
+  })
+  const comment = renderComment(
+    parsed,
+    'https://github.com/owner/repo/actions/runs/1',
+  )
+  assert.match(comment, /Chrome\/123.4 \/ Lighthouse 12.6.1/)
+  assert.match(comment, /2026-10-07T00:00:00.000Z/)
+  assert.match(comment, /artifactに保存せず/)
+  assert.doesNotMatch(comment, /artifacts\//)
+})
+
+test('workflow keeps bounded env transport and least privilege without performance artifact storage', async () => {
+  const rootRequire = createRequire(import.meta.url)
+  const cliRequire = createRequire(
+    rootRequire.resolve('@lhci/cli/package.json'),
+  )
+  const utilsRequire = createRequire(
+    cliRequire.resolve('@lhci/utils/package.json'),
+  )
+  const workflow = utilsRequire('js-yaml').safeLoad(
+    await readFile('.github/workflows/review-publish.yml', 'utf8'),
+  )
+  const { measure, 'performance-comment': comment, publish } = workflow.jobs
+  assert.deepEqual(measure.permissions, { contents: 'read' })
+  assert.deepEqual(comment.permissions, {
+    contents: 'read',
+    'pull-requests': 'write',
+  })
+  assert.equal(measure.outputs.summary, '${{ steps.collect.outputs.summary }}')
+  assert.equal(
+    measure.steps.find((step) => step.id === 'collect').run,
+    'node .github/scripts/review-performance.mjs collect',
+  )
+  const update = comment.steps.find((step) => step.env?.PERFORMANCE_SUMMARY)
+  assert.equal(
+    update.env.PERFORMANCE_SUMMARY,
+    '${{ needs.measure.outputs.summary }}',
+  )
+  assert.equal(
+    update.run,
+    'node .github/scripts/review-performance.mjs comment',
+  )
+  for (const job of [measure, comment]) {
+    for (const step of job.steps) {
+      assert.doesNotMatch(step.uses ?? '', /(?:upload|download)-artifact/)
+      assert.doesNotMatch(step.run ?? '', /gh run download|\$\{\{/)
+      assert.equal(step.env?.CLOUDFLARE_API_TOKEN, undefined)
+    }
+  }
+  assert.equal(publish.permissions.actions, 'read')
+  assert.ok(
+    publish.steps.some((step) => /gh run download/.test(step.run ?? '')),
+  )
+  const build = await readFile('.github/workflows/review-build.yml', 'utf8')
+  const checks = await readFile('.github/workflows/checks.yml', 'utf8')
+  assert.match(build, /actions\/upload-artifact/)
+  assert.match(checks, /actions\/upload-artifact/)
 })

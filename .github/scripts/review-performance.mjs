@@ -1,4 +1,12 @@
-import { mkdir, readdir, readFile, writeFile, cp, rm } from 'node:fs/promises'
+import { Buffer } from 'node:buffer'
+import {
+  mkdir,
+  readdir,
+  readFile,
+  writeFile,
+  appendFile,
+  rm,
+} from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL, URL } from 'node:url'
 import process from 'node:process'
@@ -159,6 +167,87 @@ export function evaluateProfile(data, profile) {
   }
 }
 
+// Only a small allowlisted JSON value crosses the read-only measurement / write boundary.
+const maxSummaryBytes = 16 * 1024
+function safeTime(value) {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value))
+    ? new Date(value).toISOString()
+    : '不明'
+}
+function compactConditions(conditions) {
+  return (Array.isArray(conditions) ? conditions.slice(0, 3) : []).map(
+    (condition) => ({
+      measuredAt: safeTime(condition?.measuredAt),
+      lighthouse:
+        typeof condition?.lighthouse === 'string' &&
+        /^\d{1,3}\.\d{1,3}\.\d{1,3}(?:[-+][A-Za-z0-9.-]{1,24})?$/.test(
+          condition.lighthouse,
+        )
+          ? condition.lighthouse
+          : '不明',
+      browser:
+        typeof condition?.browser === 'string'
+          ? (condition.browser.match(
+              /\b(?:HeadlessChrome|Chrome|Chromium)\/[0-9.]{1,40}/,
+            )?.[0] ?? '不明')
+          : '不明',
+    }),
+  )
+}
+function compactSummary(result) {
+  return {
+    sha: result.sha,
+    url: result.url,
+    measuredAt: safeTime(result.measuredAt),
+    profiles: Object.fromEntries(
+      profiles.map((profile) => {
+        const data = result.profiles?.[profile]
+        return [
+          profile,
+          evaluateProfile(data, profile).valid
+            ? {
+                status: 'measured',
+                runs: 3,
+                metrics: Object.fromEntries(
+                  Object.keys(audits).map((key) => [key, data.metrics[key]]),
+                ),
+                conditions: compactConditions(data.conditions),
+              }
+            : {
+                status: 'unmeasured',
+                reason: ['collection-failed', 'preview-unavailable'].includes(
+                  data?.reason,
+                )
+                  ? data.reason
+                  : 'invalid-summary',
+              },
+        ]
+      }),
+    ),
+  }
+}
+export function serializeSummary(result) {
+  const summary = JSON.stringify(compactSummary(result))
+  if (Buffer.byteLength(summary, 'utf8') > maxSummaryBytes)
+    throw new Error('Summary exceeds size limit')
+  return summary
+}
+export function parseSummary(value, sha, url) {
+  if (
+    typeof value !== 'string' ||
+    !value ||
+    Buffer.byteLength(value, 'utf8') > maxSummaryBytes
+  )
+    return null
+  try {
+    const result = JSON.parse(value)
+    if (result?.sha !== sha || result?.url !== url) return null
+    return compactSummary(result)
+  } catch {
+    return null
+  }
+}
+
 export function renderComment(result, runUrl) {
   const evaluations = profiles.map((profile) => ({
     profile,
@@ -167,11 +256,24 @@ export function renderComment(result, runUrl) {
     assessment: evaluateProfile(result.profiles?.[profile], profile),
   }))
   const rows = evaluations.map(({ label, data, assessment }) => {
-    if (!assessment.valid)
-      return `| ${label} | 判定不可 | 未計測（判定不可） | 未計測（判定不可） | 未計測（判定不可） | 未完了 |`
+    if (!assessment.valid) {
+      const reason =
+        data?.reason === 'collection-failed'
+          ? '収集失敗'
+          : data?.reason === 'preview-unavailable'
+            ? 'Preview未公開'
+            : 'サマリー欠損・不正'
+      return `| ${label} | 判定不可 | 未計測（判定不可） | 未計測（判定不可） | 未計測（判定不可） | 未完了: ${reason} |`
+    }
     const m = data.metrics
     return `| ${label} | ${assessment.rating} | ${(m.lcp / 1000).toFixed(2)} s（${assessment.ratings.lcp}） | ${m.cls.toFixed(3)}（${assessment.ratings.cls}） | ${Math.round(m.tbt)} ms（${assessment.ratings.tbt}） | 3/3 |`
   })
+  const conditions = evaluations
+    .map(({ label, data, assessment }) => {
+      const runs = assessment.valid ? compactConditions(data.conditions) : []
+      return `- ${label} 計測日時／版: ${runs.length ? runs.map((condition, index) => `run ${index + 1}: ${condition.measuredAt} / ${condition.browser} / Lighthouse ${condition.lighthouse}`).join('、') : '未計測・不明'}。`
+    })
+    .join('\n')
   const summary = evaluations
     .map(({ label, assessment }) => `${label} ${assessment.rating}`)
     .join('／')
@@ -208,7 +310,8 @@ LCP/CLSの公式目安をラボ中央値へ参考適用しています。実ユ�
 集計日時: ${result.measuredAt}
 
 PC: 1350×940、RTT 40 ms / 10240 Kbps / CPU 1倍。モバイル: 412×823、RTT 150 ms / 1638.4 Kbps / CPU 4倍。通信・CPUはsimulate、各runでストレージ・キャッシュをリセット。
-[HTML・JSONレポート／再現条件・ブラウザーとLighthouseの版](${runUrl}) の \`review-performance\` artifactを参照。
+${conditions}
+[Actions実行・エラーログ](${runUrl})。性能HTML／JSONレポートはartifactに保存せず、計測値・参考評価・条件・SHA・失敗状態をこのコメントに残します。
 通常LHCIでは操作時INP・実API待ちの完全検証はできません。最終評価は #36 で実施します。
 `
 }
@@ -248,16 +351,13 @@ async function collect() {
         `${output}/${profile}-collect.log`,
         `${run.stdout ?? ''}\n${run.stderr ?? ''}\n${run.error?.message ?? ''}`,
       )
-      await cp('.lighthouseci', `${output}/${profile}`, {
-        recursive: true,
-      }).catch(() => {})
       if (run.status !== 0) throw new Error('LHCI collect failed')
-      const files = (await readdir(`${output}/${profile}`)).filter((file) =>
+      const files = (await readdir('.lighthouseci')).filter((file) =>
         /^lhr-.*\.json$/.test(file),
       )
       const reports = await Promise.all(
         files.map(async (file) =>
-          JSON.parse(await readFile(`${output}/${profile}/${file}`, 'utf8')),
+          JSON.parse(await readFile(`.lighthouseci/${file}`, 'utf8')),
         ),
       )
       result.profiles[profile] = summarize(reports, url)
@@ -266,13 +366,17 @@ async function collect() {
         status: 'unmeasured',
         reason: 'collection-failed',
       }
+      process.stderr.write(`${profile}: ${String(error)}\n`)
       await writeFile(`${output}/${profile}-error.txt`, String(error))
     }
   }
-  await writeFile(`${output}/summary.json`, JSON.stringify(result, null, 2))
+  const summary = serializeSummary(result)
+  await writeFile(`${output}/summary.json`, summary)
+  if (process.env.GITHUB_OUTPUT)
+    await appendFile(process.env.GITHUB_OUTPUT, `summary=${summary}\n`)
 }
 
-// Trusted default-branch script only. Artifact reports are data, never commands/Markdown.
+// Trusted default-branch script only. Job output JSON is data, never commands/Markdown.
 async function comment() {
   const {
     GH_REPO: repo,
@@ -296,20 +400,15 @@ async function comment() {
       repo,
     )
   if (!current()) return
-  let result = {
+  const result = parseSummary(
+    process.env.PERFORMANCE_SUMMARY,
+    sha,
+    url || '',
+  ) ?? {
     sha,
     url: url || '',
     measuredAt: new Date().toISOString(),
     profiles: {},
-  }
-  try {
-    const saved = JSON.parse(
-      await readFile('performance-results/summary.json', 'utf8'),
-    )
-    if (saved.sha === sha && saved.url === (url || ''))
-      result = { ...result, profiles: saved.profiles }
-  } catch {
-    /* Missing artifact is explicitly unmeasured. */
   }
   const body = renderComment(result, `${server}/${repo}/actions/runs/${run}`)
   const pages = JSON.parse(

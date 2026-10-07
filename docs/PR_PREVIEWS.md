@@ -54,12 +54,15 @@ LCP／CLSの公式目安を静的UIのラボ中央値へ参考適用しており
 TBTはCore Web VitalでもINPの実測値でもありません。参考区分は実ユーザーの合否やアプリ全体の品質保証を示さず、性能評価によるmergeブロックも追加しません。
 
 公開失敗、job未完了、レポート不足、Lighthouse runtime error、URL不一致、無効な数値は「未計測」と理由を表示します。
-`review-performance` Actions artifact（7日間）に各runのHTML・JSON、設定、収集ログ、集計JSONを保存します。
-ブラウザー／Lighthouseの版・実測時刻・実際の設定は集計JSONの `conditions` と元レポートで確認できます。
+性能HTML／JSONレポートはActions artifactへ保存しません。計測中のレポート・設定・収集ログはrunner上の一時ファイルです。
+計測値・参考評価・条件・SHA・失敗状態、各runのブラウザー／Lighthouseの版と実測時刻を専用PRコメントに残します。
+Actions実行へのリンクからエラーログを確認できます。Preview配布用・Playwright用artifactは維持します。既存artifactの削除は行いません。
 PCは1350×940・RTT 40 ms・10240 Kbps・CPU 1倍、モバイルは412×823・RTT 150 ms・1638.4 Kbps・CPU 4倍。
 通信／CPUはsimulate、各runでストレージ・キャッシュをリセットします。
 
-コメント専用jobはmainのスクリプトでJSONをデータとして読むだけで、依存installやPRコードを実行しません。
+計測jobは許可した指標・版・時刻のみを最大16 KiBの単一行JSONにまとめ、job outputからコメントjobの環境変数へ渡します。
+コメント専用jobはmainのスクリプトでこのJSONをデータとして読むだけで、依存installやPRコードを実行しません。
+shellへの値の直接展開は行わず、サイズ・SHA・URLを検証し、不正・欠損・古い結果は未計測扱いにします。コメントjobにartifact読み取り権限は不要です。
 対象PRがopen・同一repo・最新head SHA一致であることをコメント一覧取得前と更新直前に照合します。
 専用マーカー `<!-- pr-preview-performance -->` のbotコメント一件を更新し、既存のPreview URLコメントを保持します。
 
