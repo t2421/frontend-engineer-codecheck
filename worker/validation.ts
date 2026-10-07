@@ -12,25 +12,25 @@ export function validateRequest(method: string, url: URL): RequestValidation {
     return { ok: false, status: 405, code: 'METHOD_NOT_ALLOWED' }
   }
 
-  const parameters = [...url.searchParams]
+  const parameters = url.searchParams
   if (url.pathname === prefecturesPath) {
-    if (parameters.length !== 0) {
-      return { ok: false, status: 400, code: 'INVALID_REQUEST' }
-    }
-    return { ok: true, upstreamPath: prefecturesPath }
+    return parameters.size === 0
+      ? { ok: true, upstreamPath: prefecturesPath }
+      : { ok: false, status: 400, code: 'INVALID_REQUEST' }
   }
 
-  const prefCode = url.searchParams.get('prefCode') ?? ''
+  const prefCode = parameters.get('prefCode') ?? ''
   if (
-    parameters.length !== 1 ||
-    !/^(?:[1-9]|[1-3][0-9]|4[0-7])$/.test(prefCode)
+    parameters.size !== 1 ||
+    !/^[1-9]\d?$/.test(prefCode) ||
+    Number(prefCode) > 47
   ) {
     return { ok: false, status: 400, code: 'INVALID_REQUEST' }
   }
   // 入力URLを変更せず、許可済みの値から上流向けのパスを作る。
   return {
     ok: true,
-    upstreamPath: `${populationPath}?${new URLSearchParams({ prefCode })}`,
+    upstreamPath: `${populationPath}?prefCode=${prefCode}`,
   }
 }
 
@@ -39,13 +39,8 @@ export function isSafeUpstreamResponse(
   apiKey: string,
 ): boolean {
   if (typeof responseData !== 'object' || responseData === null) return false
-  if (!('message' in responseData) || responseData.message !== null)
-    return false
-  if (
-    !('result' in responseData) ||
-    typeof responseData.result !== 'object' ||
-    responseData.result === null
-  ) {
+  const { message, result } = responseData as Record<string, unknown>
+  if (message !== null || typeof result !== 'object' || result === null) {
     return false
   }
 
