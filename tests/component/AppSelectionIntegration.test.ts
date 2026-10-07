@@ -10,10 +10,10 @@ test('県選択をmainの人口区分UIへ渡し、区分変更・全解除で�
     .mockResolvedValue(new Response(JSON.stringify(populationResponse())))
   vi.stubGlobal('fetch', fetch)
   const prefectures = [{ prefCode: 1, prefName: '北海道' }]
-  // Canvas rendering is covered by PopulationChart tests and real-browser E2E.
   const wrapper = mount(App, {
-    global: { stubs: { PopulationChart: true } },
     props: { prefectureLoader: () => Promise.resolve(prefectures) },
+    // Canvas rendering is covered by PopulationChart tests and browser E2E.
+    global: { stubs: { PopulationChart: true } },
   })
   try {
     await flushPromises()

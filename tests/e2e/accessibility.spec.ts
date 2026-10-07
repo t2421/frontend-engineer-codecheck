@@ -9,11 +9,14 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
     unhandledApiRequests.length = 0
     // Only the implemented prefecture contract is mocked. Never use real upstreams or Secrets.
     await page.route('**/api/**', async (route) => {
-      if (new URL(route.request().url()).pathname === '/api/v1/prefectures') {
+      if (
+        new URL(route.request().url()).pathname === '/api/v1/prefectures' &&
+        route.request().method() === 'GET'
+      ) {
         await route.fulfill({
           json: {
             message: null,
-            result: [{ prefCode: 13, prefName: '東京都' }],
+            result: [{ prefCode: 13, prefName: '検査用東京都' }],
           },
         })
         return
@@ -97,6 +100,9 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
       await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
         '0 / 1 選択中',
       )
+      const prefecture = page.getByRole('checkbox', { name: '検査用東京都' })
+      if (width >= 640) await expect(prefecture).toBeVisible()
+      else await expect(prefecture).toHaveCount(0)
       await checkAccessibility(page, testInfo)
     })
 
