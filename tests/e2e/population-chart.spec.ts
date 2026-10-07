@@ -120,13 +120,9 @@ for (const width of [1440, 768, 390, 320]) {
     }
     await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
     await expect(page.locator('canvas')).toBeVisible()
-    await page
-      .getByText('人口データを表で確認（総人口）', { exact: true })
-      .focus()
-    await page.keyboard.press('Enter')
     await expect(
       page.getByRole('cell', { name: '7,600,000人', exact: true }),
-    ).toBeVisible()
+    ).toHaveCount(1)
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,

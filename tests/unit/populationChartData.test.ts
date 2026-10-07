@@ -80,6 +80,9 @@ test('異なる年の県も数値座標で正しい年・人数を保持し入�
   expect(createPopulationChartData([], []).datasets).toEqual([])
 })
 test('47県で色の割当が固有かつ選択順や解除によらず固定', () => {
+  expect(
+    Array.from({ length: 47 }, (_, i) => seriesStyle(i + 1).colorIndex),
+  ).toEqual(Array.from({ length: 47 }, (_, i) => i))
   const styles = Array.from({ length: 47 }, (_, i) => seriesStyle(i + 1))
   expect(new Set(styles.map((s) => JSON.stringify(s))).size).toBe(47)
   const forward = createPopulationChartData(series, [

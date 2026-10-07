@@ -1,5 +1,19 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import PageTitle from '../components/shared/PageTitle.vue'
+import PrefectureSelectionPanel from '../components/prefectures/PrefectureSelectionPanel.vue'
+import PopulationDataPanel from '../components/population/PopulationDataPanel.vue'
+import type { PrefectureLoader } from '../components/prefectures/usePrefectures'
+import type { PopulationLoader } from '../components/population/usePopulationData'
+import type { Prefecture } from '../components/prefectures/prefectureApi'
+import type { PopulationCategory } from '../components/population/populationApi'
 import populationMark from '../assets/population-mark.svg'
+defineProps<{
+  prefectureLoader?: PrefectureLoader
+  populationLoader?: PopulationLoader
+}>()
+const selectedPrefectures = ref<Prefecture[]>([])
+const category = ref<PopulationCategory>('total')
 </script>
 
 <template>
@@ -19,29 +33,20 @@ import populationMark from '../assets/population-mark.svg'
   </header>
 
   <main id="main-content" class="main-content" tabindex="-1">
-    <div class="page-introduction">
-      <h1 class="page-title">都道府県別の人口推移</h1>
-      <p class="page-description">
-        都道府県と人口の区分を選んで、変化を比べられます。
-      </p>
-    </div>
+    <PageTitle
+      title="都道府県別の人口推移"
+      description="都道府県と人口の区分を選んで、変化を比べられます。"
+    />
 
     <section
       class="content-area prefectures"
       aria-labelledby="prefectures-title"
     >
-      <slot name="prefecture-content">
-        <div class="prefectures-heading">
-          <h2 id="prefectures-title" class="section-title">都道府県</h2>
-          <slot name="prefecture-actions" />
-        </div>
-        <p class="prefectures-description">
-          比較したい都道府県を選択（複数選択可）
-        </p>
-        <slot name="prefectures">
-          <div class="prefectures-space" aria-hidden="true" />
-        </slot>
-      </slot>
+      <PrefectureSelectionPanel
+        v-model="selectedPrefectures"
+        :loader="prefectureLoader"
+        heading-id="prefectures-title"
+      />
     </section>
 
     <section class="content-area population" aria-labelledby="population-title">
@@ -49,9 +54,11 @@ import populationMark from '../assets/population-mark.svg'
         <h2 id="population-title" class="section-title">人口推移</h2>
         <p class="population-description">選択した都道府県を同じ区分で比較</p>
       </div>
-      <slot name="population">
-        <div class="population-space" aria-hidden="true" />
-      </slot>
+      <PopulationDataPanel
+        v-model:category="category"
+        :selected-prefectures="selectedPrefectures"
+        :loader="populationLoader"
+      />
     </section>
   </main>
 </template>
@@ -98,24 +105,8 @@ import populationMark from '../assets/population-mark.svg'
   padding-block: var(--space-40);
 }
 
-.page-introduction {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.page-title {
-  font: var(--font-title);
-}
-
 .section-title {
   font: var(--font-section);
-}
-
-.page-description,
-.prefectures-description,
-.population-description {
-  color: var(--color-text-secondary);
 }
 
 .content-area {
@@ -132,20 +123,6 @@ import populationMark from '../assets/population-mark.svg'
   gap: var(--space-16);
 }
 
-.prefectures-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-12);
-  min-height: 44px;
-}
-
-/* 空 slot の高さは参照デザインのレイアウトを仮に確保するもの。
-   `prefectures` / `population` slot に実部品が入ったら `.prefectures-space` / `.population-space` と各 media query 内の同名ルールを削除する。 */
-.prefectures-space {
-  min-height: 284px;
-}
-
 .population {
   gap: var(--space-20);
 }
@@ -158,10 +135,7 @@ import populationMark from '../assets/population-mark.svg'
 
 .population-description {
   font: var(--font-caption);
-}
-
-.population-space {
-  min-height: 400px;
+  color: var(--color-text-secondary);
 }
 
 .skip-link {
@@ -189,10 +163,6 @@ import populationMark from '../assets/population-mark.svg'
   .main-content {
     padding-block: var(--space-32);
   }
-
-  .prefectures-space {
-    min-height: 572px;
-  }
 }
 
 @media (width < 640px) {
@@ -209,24 +179,8 @@ import populationMark from '../assets/population-mark.svg'
     display: none;
   }
 
-  .page-title {
-    font: var(--font-title-mobile);
-  }
-
   .content-area {
     padding: var(--space-16);
-  }
-
-  .prefectures-heading {
-    min-height: var(--line-height-section);
-  }
-
-  .prefectures-space {
-    min-height: 44px;
-  }
-
-  .population-space {
-    min-height: 320px;
   }
 }
 </style>

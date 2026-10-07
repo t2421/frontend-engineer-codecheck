@@ -12,9 +12,10 @@ withDefaults(
     state: StatusMessageState
     title: string
     description?: string
+    compact?: boolean
     headingLevel?: 2 | 3 | 4 | 5 | 6
   }>(),
-  { description: undefined, headingLevel: 3 },
+  { description: undefined, headingLevel: 3, compact: false },
 )
 
 const icons = { empty: emptyIcon, loading: loadingIcon, error: errorIcon }
@@ -24,7 +25,10 @@ const icons = { empty: emptyIcon, loading: loadingIcon, error: errorIcon }
   <div class="status-message-container">
     <div
       class="status-message"
-      :class="`status-message-${state}`"
+      :class="[
+        `status-message-${state}`,
+        { 'status-message-compact': compact },
+      ]"
       :aria-busy="state === 'loading'"
     >
       <div class="status-message-symbol" aria-hidden="true">
@@ -136,6 +140,25 @@ const icons = { empty: emptyIcon, loading: loadingIcon, error: errorIcon }
 
 .status-message-action {
   max-width: 100%;
+}
+
+.status-message-compact {
+  flex-flow: row wrap;
+  gap: var(--space-12);
+  min-height: 0;
+  padding: var(--space-12);
+  text-align: start;
+}
+
+.status-message-compact .status-message-symbol {
+  width: 32px;
+  height: 32px;
+}
+
+.status-message-compact .status-message-copy {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: none;
 }
 
 @keyframes status-message-spin {
