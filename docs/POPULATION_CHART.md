@@ -40,7 +40,7 @@ Mac / Node 24.16.0 / native pnpm 12.8.1 / installed Google Chrome。TDD で描�
 | チェック                    | 結果                                                                                                                                   |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm check`                | ESLint・Stylelint・Prettier・vue-tsc 成功                                                                                              |
-| `pnpm test`                 | 単体・部品60件、レビュー関連13件成功                                                                                                   |
+| `pnpm test`                 | 単体・部品130件、レビュー関連13件成功                                                                                                  |
 | `pnpm test:e2e --workers=2` | 61件成功（共通axeのグラフ20状態を含む）                                                                                                |
 | 描画・更新・破棄            | 4区分、解除、全解除、再表示3回、連続更新、unmount、Chart.js registry の instance 数・同一 id と破棄を確認                              |
 | 実ブラウザ                  | 入力年・人数、線の有限座標、canvas の非空画素、人数 tooltip、47県凡例、各幅への resize、表のキーボード操作、検証fixtureの API 通信ゼロ |
@@ -70,4 +70,4 @@ Mac / Node 24.16.0 / native pnpm 12.8.1 / installed Google Chrome。TDD で描�
 
 [PC 3県](./screenshots/issue-26/solid-colors-panel-1440.png) / [tablet 3県](./screenshots/issue-26/solid-colors-panel-768.png) / [mobile 3県](./screenshots/issue-26/solid-colors-panel-390.png) / [320px 3県](./screenshots/issue-26/solid-colors-panel-320.png) / [PC 47県](./screenshots/issue-26/solid-colors-47-1440.png) / [mobile 47県](./screenshots/issue-26/solid-colors-47-390.png)。PR・Previewの反映結果と対象SHAはPR本文を参照してください。
 
-TDDで47色の固有性検査が旧実装の3色に対して失敗することを確認してから変更しました。全系列の実線・tension=0、選択順反転・個別解除／再選択で色固定、実canvasと凡例の色一致、既存の全点保持・tooltip・区分変更・生成更新破棄を確認しています。check・60件の単体/部品・13件のレビュー関連テスト・61件のChrome・buildが成功しました。
+TDDで47色の固有性検査が旧実装の3色に対して失敗することを確認してから変更しました。全系列の実線・tension=0、選択順反転・個別解除／再選択で色固定、実canvasと凡例の色一致、既存の全点保持・tooltip・区分変更・生成更新破棄を確認しています。最新main（PR48のAPI中継を含む）との統合後、check・130件の単体/部品・13件のレビュー関連テスト・61件のChrome・通常/review build・auditが成功しました。共通axeのグラフ20状態はviolations/incompleteとも0件です。

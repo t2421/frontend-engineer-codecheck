@@ -25,7 +25,7 @@ pnpm build
 pnpm preview
 ```
 
-プレビューはビルド済みWorkerとStatic Assetsをローカルworkerdで実行します。画面は`dist/client`、Workerは`dist/population_viewer`に出力します。API中継は未実装で、`/api/*`は404です。SPAの深いURLはindex.htmlへフォールバックします。停止はCtrl+Cです。
+プレビューはビルド済みWorkerとStatic Assetsをローカルworkerdで実行します。画面は`dist/client`、Workerは`dist/population_viewer`に出力します。[API中継](./API_PROXY.md)はGET 2本に限定しています。実行時の`YUMEMI_API_KEY`がない場合は503、未知のAPIパスは404です。SPAの深いURLはindex.htmlへフォールバックします。停止はCtrl+Cです。
 
 Cloudflareへのログイン・秘密値・実デプロイは不要です。これらとCIはこの変更の対象外です。ポートが使用中なら`pnpm dev --port 5176 --strictPort`や`pnpm preview --port 4175 --strictPort`を指定します。Chromeテストは5175番を専用使用し、既存serverを再利用しません。
 

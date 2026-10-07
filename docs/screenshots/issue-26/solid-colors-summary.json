@@ -294,10 +294,12 @@
     "incomplete": 0
   },
   "checks": {
-    "unitAndComponent": 60,
+    "unitAndComponent": 130,
     "review": 13,
     "chrome": 61,
     "check": "passed",
-    "build": "passed"
+    "build": "passed",
+    "reviewBuild": "passed",
+    "audit": "passed; existing braces high exception only"
   }
 }

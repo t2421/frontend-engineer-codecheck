@@ -23,7 +23,7 @@ PR #39の[確認ページ](https://pr-39-population-viewer.t2421-loop.workers.de
 `wrangler.jsonc` の `API_RATE_LIMITER` はnamespace `27001`、limit `200`、period `10`です。
 `worker/index.ts` は `/api/*` にCloudflareの `CF-Connecting-IP` を使い、両API共通のIPキーで制限します。拒否時は429と `Retry-After: 10`、IP不明時は503です。IPをログへ出しません。
 
-許可後もAPI proxy未実装のため404です。上流通信やAPIキー参照は追加しません。静的UIは制限対象外です。
+許可後は[APIプロキシ](./API_PROXY.md)が指定のGET 2本を中継します。実行時の`YUMEMI_API_KEY`が未設定なら503です。静的UIは制限対象外です。
 [公式binding仕様](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)の制限はCloudflare拠点ごとの近似値です。共有回線では複数利用者が同じIPになるため、公開承認後に実際の利用への影響を確認します。同じnamespaceを他Workerで使うとカウンタが共有されます。
 
 Workers Freeは[公式limits](https://developers.cloudflare.com/workers/platform/limits/)上、Worker実行100,000 requests/day、CPU 10 ms/request、subrequests 50/request、同時外部接続6、メモリ128 MBです。[Static Assets要求は無料・無制限](https://developers.cloudflare.com/workers/platform/pricing/)ですが、`/api/*` はWorker実行枠を使います。このRate Limitは日次枠や上流APIの割当量を保証しません。
@@ -39,7 +39,7 @@ Workers Freeは[公式limits](https://developers.cloudflare.com/workers/platform
 
 account IDは冒頭の値です。tokenは対象Worker `population-viewer` のEditorに限定し、[公式roles](https://developers.cloudflare.com/workers/authorization/workers/)に従います。不要なAdmin・DNS・KV・R2・Billing権限を付けません。必要な有効期間とproductionのmain制限・reviewerを別タスクで決めます。
 
-将来の人口API用Secretは公開用tokenとは別です。proxy実装時に名前を確定してからWorker Secretへ設定します。現段階では不要なので `secrets.required` は追加していません。[Secretの設定は即時公開を伴う場合があります](https://developers.cloudflare.com/workers/configuration/secrets/)。
+人口API用Worker Secret `YUMEMI_API_KEY`は公開用tokenとは別です。[利用手順と検証範囲](./API_PROXY.md)を参照してください。値の設定は別作業で、未設定でも静的配信とbuildを可能にするため `secrets.required` は追加していません。[Secretの設定は即時公開を伴う場合があります](https://developers.cloudflare.com/workers/configuration/secrets/)。
 
 ## 完了条件と残件
 
@@ -47,4 +47,4 @@ account IDは冒頭の値です。tokenは対象Worker `population-viewer` のEd
 
 自動公開の運用完了には、#43のmerge、別タスクのSecrets設定、PR更新によるPreview公開・同じコメント更新・close時削除の検証が必要です。現在はCI自動公開の検証未達です。
 
-**Rate Limitの本番公開は保留中です。** このPRのmergeやChecks成功だけでは公開しません。別途承認されたmainのDeploy production実行後に、本番の許可・429応答・静的UIへの影響を確認します。近似カウンタの本番負荷試験とAPI proxy実装も未完了です。
+**Rate Limitの本番公開は保留中です。** このPRのmergeやChecks成功だけでは公開しません。別途承認されたmainのDeploy production実行後に、本番の許可・429応答・静的UIへの影響を確認します。近似カウンタの本番負荷試験と実API疎通は未確認です。API proxyのローカル実装・検証は[Issue #45の記録](./API_PROXY.md)を参照してください。
