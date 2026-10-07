@@ -455,7 +455,7 @@ Cloudflare UI Preview: ${process.env.PREVIEW_BASE_URL}
 
 対象commit: \`${sha}\`
 
-URLを知っている方が閲覧できます。本番API・Secretは使用しません。
+URLを知っている方が閲覧できます。公開済み本番APIを使用し、利用枠を消費します。PreviewにSecretは渡しません。PR内のバックエンド変更は検証対象外です。
 `,
     )
   }
