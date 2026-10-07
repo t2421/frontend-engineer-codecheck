@@ -242,7 +242,7 @@ test('一覧取得中は47個の操作不可skeletonと案内を表示する（A
   await expect(page.getByRole('checkbox')).toHaveCount(47)
 })
 
-test('全体確認用fixtureは同じAppを使用しAPI通信せず人口値を描画する', async ({
+test('全体確認用fixtureはPopulationPageを使用しAPI通信せず人口値を描画する', async ({
   page,
 }) => {
   const requests: string[] = []
