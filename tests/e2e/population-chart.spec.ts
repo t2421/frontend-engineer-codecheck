@@ -377,7 +377,7 @@ test('県・区分変更で実際の年範囲の端を更新し、推計年も�
   expect((await snapshot(page)).datasets?.[0]?.data).toHaveLength(5)
 })
 
-test('非PCは端年だけ、PCは中間も均等に表示し、実APIと同じ18点を保持する', async ({
+test('非PCは端年だけ、PCは全年度を表示し、実APIと同じ18点を保持する', async ({
   page,
 }) => {
   const { prefectureResponse, appPopulationResponse } =
@@ -426,7 +426,7 @@ test('非PCは端年だけ、PCは中間も均等に表示し、実APIと同じ1
       if (!previous || !next) throw new Error('隣接するラベルがありません')
       expect(
         next.x - next.width / 2 - (previous.x + previous.width / 2),
-      ).toBeGreaterThanOrEqual(16)
+      ).toBeGreaterThanOrEqual(0)
     }
     const last = tickLabels.at(-1)
     if (!last) throw new Error('末尾のラベルがありません')
