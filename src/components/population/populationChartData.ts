@@ -13,17 +13,23 @@ export function yearTicks(
   if (years.length < 2) return years
   const first = years[0]!
   const last = years.at(-1)!
-  const gap = labelWidth + 16
+  const gap = labelWidth + (width < 480 ? 32 : 16)
   const availableWidth = Math.max(0, width - labelWidth)
   const distance = (a: number, b: number) =>
     ((b - a) / (last - first)) * availableWidth
-  const ticks = [first]
-  for (const year of years.slice(1, -1)) {
-    if (distance(ticks.at(-1)!, year) >= gap && distance(year, last) >= gap)
-      ticks.push(year)
+  const maxCount = Math.min(
+    years.length,
+    Math.max(2, Math.floor(availableWidth / gap) + 1),
+  )
+  for (let count = maxCount; count > 2; count--) {
+    const ticks = Array.from(
+      { length: count },
+      (_, i) => years[Math.round((i * (years.length - 1)) / (count - 1))]!,
+    )
+    if (ticks.slice(1).every((year, i) => distance(ticks[i]!, year) >= gap))
+      return ticks
   }
-  ticks.push(last)
-  return ticks
+  return [first, last]
 }
 
 // Assign one fixed color token per prefecture, independent of selection order.

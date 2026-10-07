@@ -376,3 +376,55 @@ test('県・区分変更で実際の年範囲の端を更新し、推計年も�
   await expect.poll(endpoints).toEqual([1963, 2057])
   expect((await snapshot(page)).datasets?.[0]?.data).toHaveLength(5)
 })
+
+test('実APIと同じ18点の年範囲をスマホからPCまで均等に表示し、末尾年を切らない', async ({
+  page,
+}) => {
+  const { prefectureResponse, appPopulationResponse } =
+    await import('../fixtures/appApi')
+  await page.setViewportSize({ width: 320, height: 1100 })
+  await page.route('**/api/v1/prefectures', (route) =>
+    route.fulfill({ json: prefectureResponse }),
+  )
+  await page.route('**/api/v1/population/composition/perYear?*', (route) => {
+    const response = appPopulationResponse(1)
+    for (const category of response.result.data) {
+      category.data = Array.from({ length: 18 }, (_, i) => ({
+        year: 1960 + i * 5,
+        value: 5000000 + i * 1000,
+      }))
+    }
+    return route.fulfill({ json: response })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
+  await page.getByRole('checkbox', { name: '北海道', exact: true }).check()
+  await expect(page.locator('canvas')).toBeVisible()
+  for (const width of [320, 375, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1100 })
+    await expect
+      .poll(async () => (await snapshot(page)).width)
+      .toBe(
+        width >= 1024 ? width - 210 : width >= 640 ? width - 114 : width - 66,
+      )
+    const current = await snapshot(page)
+    expect(current.xTicks?.[0]).toBe(1960)
+    expect(current.xTicks?.at(-1)).toBe(2045)
+    expect(current.datasets?.[0]?.data).toHaveLength(18)
+    const intervals = current
+      .xTicks!.slice(1)
+      .map((year, i) => (year - current.xTicks![i]!) / 5)
+    expect(Math.max(...intervals) - Math.min(...intervals)).toBeLessThanOrEqual(
+      1,
+    )
+    for (let i = 1; i < current.tickLabels!.length; i++) {
+      const previous = current.tickLabels![i - 1]!
+      const next = current.tickLabels![i]!
+      expect(
+        next.x - next.width / 2 - (previous.x + previous.width / 2),
+      ).toBeGreaterThanOrEqual(16)
+    }
+    const last = current.tickLabels!.at(-1)!
+    expect(last.x + last.width / 2).toBeLessThanOrEqual(current.width!)
+  }
+})
