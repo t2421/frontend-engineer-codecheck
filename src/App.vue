@@ -4,8 +4,12 @@ import PopulationPage from './components/PopulationPage.vue'
 import PrefectureSelectionPanel from './features/population/PrefectureSelectionPanel.vue'
 import PopulationDataPanel from './features/population/PopulationDataPanel.vue'
 import type { PrefectureLoader } from './features/population/usePrefectures'
+import type { PopulationLoader } from './features/population/usePopulationData'
 import type { Prefecture } from './features/population/prefectureApi'
-defineProps<{ prefectureLoader?: PrefectureLoader }>()
+defineProps<{
+  prefectureLoader?: PrefectureLoader
+  populationLoader?: PopulationLoader
+}>()
 const selectedPrefectures = ref<Prefecture[]>([])
 defineSlots<{
   population(props: { selectedPrefectures: readonly Prefecture[] }): unknown
@@ -22,7 +26,10 @@ defineSlots<{
     </template>
     <template #population>
       <slot name="population" :selected-prefectures="selectedPrefectures">
-        <PopulationDataPanel :selected-prefectures="selectedPrefectures" />
+        <PopulationDataPanel
+          :selected-prefectures="selectedPrefectures"
+          :loader="populationLoader"
+        />
       </slot>
     </template>
   </PopulationPage>
