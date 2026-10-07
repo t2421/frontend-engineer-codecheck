@@ -18,7 +18,7 @@
 - `PrefectureSelectionPanel.vue`: 共通CheckboxSkeleton 47個、共通StatusMessageとaction slotのButton、一覧を切り替える。選択した県のcode/nameをv-modelで親へ返す。
 - `App.vue`: 選択県の正本を保持し、PopulationPageへ接続。population scoped slotから`selectedPrefectures`を渡し、後続で`PopulationDataPanel :selected-prefectures="selectedPrefectures"`を既定で接続した。
 - `PopulationPage.vue`: 既存slotを維持し、選択欄の見出し・件数・解除操作をまとめて置ける`prefecture-content` slotを追加。
-- `tests/e2e/fixtures/prefecture-selection.html`: 公開reviewの既存規約に合わせた合成データfixture。既定は47件、`?mode=loading`は手動解放、`?mode=error`は一度失敗して再試行で復帰。実APIを呼ばず、通常buildには含めない。出力JSONと合成操作はfixtureだけに存在する。
+- `tests/preview/prefecture-selection.html`: 公開reviewの既存規約に合わせた合成データfixture。既定は47件、`?mode=loading`は手動解放、`?mode=error`は一度失敗して再試行で復帰。実APIを呼ばず、通常buildには含めない。出力JSONと合成操作はfixtureだけに存在する。
 
 ## デザインと画面確認
 

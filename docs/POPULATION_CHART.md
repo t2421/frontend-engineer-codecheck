@@ -52,7 +52,7 @@ Mac / Node 24.16.0 / native pnpm 12.8.1 / installed Google Chrome。TDD で描�
 
 ## ローカルでの確認
 
-`pnpm dev` の URL で `/tests/e2e/fixtures/population-chart.html` を開きます。初期は未選択。東京都・大阪府・北海道にチェックし、4区分・個別解除・全解除・47県・グラフ領域表示切替を操作できます。データは合成で、実APIや秘密値を使用しません。review build が既存公開規約の `tests/e2e/fixtures/*.html` として列挙することも確認しました。
+`pnpm dev` の URL で `/tests/preview/population-chart.html` を開きます。初期は未選択。東京都・大阪府・北海道にチェックし、4区分・個別解除・全解除・47県・グラフ領域表示切替を操作できます。データは合成で、実APIや秘密値を使用しません。review build が既存公開規約の `tests/preview/*.html` として列挙することも確認しました。
 
 最新mainのreview build・性能計測と生成物の除外設定を維持しています。性能計測は同じheadのSHA付きアプリURLで自動実行され、fixtureの手動検証とは別にPRへ結果を記録します。
 

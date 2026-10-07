@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import PopulationChart from '../../src/features/population/PopulationChart.vue'
+import PopulationChart from '../../src/components/population/PopulationChart.vue'
 import { series } from '../fixtures/populationChart'
 const mocks = vi.hoisted(() => ({
   instances: [] as {

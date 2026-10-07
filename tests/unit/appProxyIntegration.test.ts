@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import worker from '../../worker/index'
-import { fetchPrefectures } from '../../src/features/population/prefectureApi'
-import { fetchPopulation } from '../../src/features/population/populationApi'
+import { fetchPrefectures } from '../../src/components/prefectures/prefectureApi'
+import { fetchPopulation } from '../../src/components/population/populationApi'
 import { prefectureResponse, appPopulationResponse } from '../fixtures/appApi'
 
 afterEach(() => vi.unstubAllGlobals())

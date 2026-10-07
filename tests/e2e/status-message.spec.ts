@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/tests/e2e/fixtures/status-message.html')
+  await page.goto('/tests/preview/status-message.html')
 })
 
 test('状態の文言を読み上げ領域へ公開し、再試行はキーボードで通知する', async ({

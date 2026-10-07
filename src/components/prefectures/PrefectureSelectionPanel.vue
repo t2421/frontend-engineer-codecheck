@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import CheckboxSkeleton from '../../shared/ui/CheckboxSkeleton.vue'
-import StatusMessage from '../../shared/ui/StatusMessage.vue'
-import Button from '../../shared/ui/Button.vue'
+import CheckboxSkeleton from '../shared/CheckboxSkeleton.vue'
+import StatusMessage from '../shared/StatusMessage.vue'
+import Button from '../shared/Button.vue'
 import PrefectureSelector from './PrefectureSelector.vue'
 import { prefectureFailure, type Prefecture } from './prefectureApi'
 import { usePrefectures, type PrefectureLoader } from './usePrefectures'

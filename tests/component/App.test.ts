@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { mount } from '@vue/test-utils'
 import App from '../../src/App.vue'
-import PopulationPage from '../../src/components/PopulationPage.vue'
+import PopulationPage from '../../src/pages/PopulationPage.vue'
 
 test('ページとコンテンツ領域を適切な見出し階層で表示する', () => {
   const wrapper = mount(App)

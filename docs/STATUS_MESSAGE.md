@@ -1,6 +1,6 @@
 # 共通ステータスメッセージ
 
-`src/shared/ui/StatusMessage.vue`は通信や人口の業務判断を持たない表示部品。`state`（`empty | loading | error`）と`title`を必須、`description`を任意で受け取る。見出しは既定h3で、`headingLevel`（2〜6）を親の見出し階層に合わせて指定する。文言を部品に固定せず、一覧取得失敗にも同じ部品を使う。
+`src/components/shared/StatusMessage.vue`は通信や人口の業務判断を持たない表示部品。`state`（`empty | loading | error`）と`title`を必須、`description`を任意で受け取る。見出しは既定h3で、`headingLevel`（2〜6）を親の見出し階層に合わせて指定する。文言を部品に固定せず、一覧取得失敗にも同じ部品を使う。
 
 任意の操作は`action` slotへ渡す。呼び出し元が共通Buttonの`click`を受けて再試行し、文言・状態・操作可否を更新する。StatusMessage自体は操作イベントを重複発火しない。API、選択保持、成功後の一覧／グラフ表示は呼び出し元の責務。
 
@@ -38,4 +38,4 @@ PR #37反映後のmain（2867e3c）を取り込み、検証fixtureの再試行2�
 
 置換後の検証：check（lint・styles・format・types）、Vitest 20件、Chrome E2E 9件、build成功。StatusMessageと共通Buttonの組み合わせで、マウスクリック・Tab／Enter／Space・disabled時のクリック通知抑止とTabスキップを確認した。
 
-自動Previewの既存ビルド対象に合わせ、状態確認fixtureは`tests/e2e/fixtures/status-message.html`へ配置する。通常の本番buildには含めない。
+自動Previewの既存ビルド対象に合わせ、状態確認fixtureは`tests/preview/status-message.html`へ配置する。通常の本番buildには含めない。

@@ -1,9 +1,9 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
-import PrefectureSelector from '../../src/features/population/PrefectureSelector.vue'
-import PrefectureSelectionPanel from '../../src/features/population/PrefectureSelectionPanel.vue'
-import type { Prefecture } from '../../src/features/population/prefectureApi'
+import PrefectureSelector from '../../src/components/prefectures/PrefectureSelector.vue'
+import PrefectureSelectionPanel from '../../src/components/prefectures/PrefectureSelectionPanel.vue'
+import type { Prefecture } from '../../src/components/prefectures/prefectureApi'
 const prefectures = [
   { prefCode: 13, prefName: '東京都' },
   { prefCode: 1, prefName: '北海道' },

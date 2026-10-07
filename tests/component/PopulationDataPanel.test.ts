@@ -1,9 +1,9 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import StatusMessage from '../../src/shared/ui/StatusMessage.vue'
-import Button from '../../src/shared/ui/Button.vue'
-import PopulationDataPanel from '../../src/features/population/PopulationDataPanel.vue'
-import { parsePopulation } from '../../src/features/population/populationApi'
+import StatusMessage from '../../src/components/shared/StatusMessage.vue'
+import Button from '../../src/components/shared/Button.vue'
+import PopulationDataPanel from '../../src/components/population/PopulationDataPanel.vue'
+import { parsePopulation } from '../../src/components/population/populationApi'
 import { populationResponse } from '../fixtures/population'
 const prefectures = [
   { prefCode: 1, prefName: '北海道' },

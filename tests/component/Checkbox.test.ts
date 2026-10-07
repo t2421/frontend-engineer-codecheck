@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
-import Checkbox from '../../src/shared/ui/Checkbox.vue'
+import Checkbox from '../../src/components/shared/Checkbox.vue'
 
 afterEach(() => {
   document.body.innerHTML = ''

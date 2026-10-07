@@ -1,5 +1,5 @@
 import { createApp, defineComponent, h, ref } from 'vue'
-import Button from '../../src/shared/ui/Button.vue'
+import Button from '../../src/components/shared/Button.vue'
 import '../../src/base.css'
 
 createApp(

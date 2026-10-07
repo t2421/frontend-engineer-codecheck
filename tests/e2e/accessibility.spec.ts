@@ -38,7 +38,7 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
     for (const state of ['empty', 'selected', 'elder', 'table', 'cleared']) {
       test(`人口グラフ ${state} ${width}px`, async ({ page }, testInfo) => {
         await page.setViewportSize({ width, height: 1100 })
-        await page.goto('/tests/e2e/fixtures/population-chart.html')
+        await page.goto('/tests/preview/population-chart.html')
         await expect(page.getByRole('status')).toContainText(
           '都道府県を選択すると',
         )
@@ -108,7 +108,7 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
 
     test(`既存スケルトン部品 ${width}px`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 1000 })
-      await page.goto('/tests/fixtures/skeleton.html')
+      await page.goto('/tests/preview/skeleton.html')
       await expect(page.getByRole('status')).toHaveText(
         '都道府県一覧を読み込んでいます…',
       )
@@ -122,7 +122,7 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
       page,
     }, testInfo) => {
       await page.setViewportSize({ width, height: 1000 })
-      await page.goto('/tests/e2e/fixtures/prefecture-selection.html')
+      await page.goto('/tests/preview/prefecture-selection.html')
       await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
         '0 / 47 選択中',
       )
@@ -149,9 +149,7 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
         page,
       }, testInfo) => {
         await page.setViewportSize({ width, height: 1000 })
-        await page.goto(
-          `/tests/e2e/fixtures/prefecture-selection.html?mode=${mode}`,
-        )
+        await page.goto(`/tests/preview/prefecture-selection.html?mode=${mode}`)
         if (mode === 'loading')
           await expect(page.locator('.checkbox-skeleton')).toHaveCount(47)
         else
@@ -174,7 +172,7 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
 
   for (const state of ['通常・無効', 'hover', 'focus']) {
     test(`Buttonの${state}`, async ({ page }, testInfo) => {
-      await page.goto('/tests/fixtures/button.html')
+      await page.goto('/tests/preview/button.html')
       const button = page.getByRole('button', { name: '再読み込み' })
       await expect(button).toBeVisible()
       await expect(page.getByRole('button', { name: '無効' })).toBeDisabled()

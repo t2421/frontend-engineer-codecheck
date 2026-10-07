@@ -1,7 +1,7 @@
 import { createApp, defineComponent, h, ref } from 'vue'
-import StatusMessage from '../../../src/shared/ui/StatusMessage.vue'
-import Button from '../../../src/shared/ui/Button.vue'
-import '../../../src/base.css'
+import StatusMessage from '../../src/components/shared/StatusMessage.vue'
+import Button from '../../src/components/shared/Button.vue'
+import '../../src/base.css'
 
 // Retry decisions remain with the caller; the action slot composes the shared Button.
 createApp(

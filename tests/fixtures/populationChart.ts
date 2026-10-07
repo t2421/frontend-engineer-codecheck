@@ -1,4 +1,4 @@
-import type { PopulationSeries } from '../../src/features/population/populationApi'
+import type { PopulationSeries } from '../../src/components/population/populationApi'
 export const series: PopulationSeries[] = [
   {
     prefCode: 13,

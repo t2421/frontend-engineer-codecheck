@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
-import Button from '../../src/shared/ui/Button.vue'
+import Button from '../../src/components/shared/Button.vue'
 
 enableAutoUnmount(afterEach)
 
@@ -42,7 +42,7 @@ describe('Button', () => {
 
   test('aria属性などをネイティブbuttonに引き継ぐ', () => {
     const wrapper = mount(Button, {
-      props: { label: '詳細', variant: 'primary' },
+      props: { label: '詳細' },
       attrs: {
         'aria-expanded': 'false',
         'aria-controls': 'details',

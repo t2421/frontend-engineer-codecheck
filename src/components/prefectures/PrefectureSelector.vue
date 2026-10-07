@@ -8,8 +8,8 @@ import {
   useId,
   useTemplateRef,
 } from 'vue'
-import Checkbox from '../../shared/ui/Checkbox.vue'
-import Button from '../../shared/ui/Button.vue'
+import Checkbox from '../shared/Checkbox.vue'
+import Button from '../shared/Button.vue'
 import type { Prefecture } from './prefectureApi'
 const props = defineProps<{
   prefectures: readonly Prefecture[]

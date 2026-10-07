@@ -1,8 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { h } from 'vue'
-import StatusMessage from '../../src/shared/ui/StatusMessage.vue'
-import Button from '../../src/shared/ui/Button.vue'
+import StatusMessage from '../../src/components/shared/StatusMessage.vue'
+import Button from '../../src/components/shared/Button.vue'
 
 const wrappers: ReturnType<typeof mount>[] = []
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()))

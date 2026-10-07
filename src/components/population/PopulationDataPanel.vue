@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import SingleSelectGroup from '../../shared/ui/SingleSelectGroup.vue'
-import Button from '../../shared/ui/Button.vue'
-import StatusMessage from '../../shared/ui/StatusMessage.vue'
+import SingleSelectGroup from '../shared/SingleSelectGroup.vue'
+import Button from '../shared/Button.vue'
+import StatusMessage, {
+  type StatusMessageState,
+} from '../shared/StatusMessage.vue'
 import PopulationChart from './PopulationChart.vue'
 import {
   populationCategories,
@@ -9,7 +11,11 @@ import {
   type PopulationSeries,
   type PopulationCategory,
 } from './populationApi'
-import { usePopulationData, type PopulationLoader } from './usePopulationData'
+import {
+  usePopulationData,
+  type PopulationLoader,
+  type PopulationStatus,
+} from './usePopulationData'
 const props = defineProps<{
   selectedPrefectures: readonly SelectedPrefecture[]
   loader?: PopulationLoader
@@ -18,14 +24,17 @@ defineSlots<{
   default(props: {
     series: readonly PopulationSeries[]
     category: PopulationCategory
-    status: 'empty' | 'loading' | 'error' | 'ready'
+    status: PopulationStatus
   }): unknown
 }>()
 const { category, status, series, retry } = usePopulationData(
   () => props.selectedPrefectures,
   props.loader,
 )
-const statusCopy = {
+const statusCopy: Record<
+  StatusMessageState,
+  { title: string; description: string }
+> = {
   empty: {
     title: '都道府県を選択すると、人口の推移を確認できます',
     description:

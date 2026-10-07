@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import PopulationPage from '../../src/components/PopulationPage.vue'
-import PopulationDataPanel from '../../src/features/population/PopulationDataPanel.vue'
-import Button from '../../src/shared/ui/Button.vue'
-import { parsePopulation } from '../../src/features/population/populationApi'
-import { populationResponse } from './population'
+import PopulationPage from '../../src/pages/PopulationPage.vue'
+import PopulationDataPanel from '../../src/components/population/PopulationDataPanel.vue'
+import Button from '../../src/components/shared/Button.vue'
+import { parsePopulation } from '../../src/components/population/populationApi'
+import { populationResponse } from '../fixtures/population'
 const selected = ref<number[]>([])
 const prefectures = [
   { prefCode: 1, prefName: '北海道' },
@@ -42,7 +42,7 @@ function releaseResponses() {
 <template>
   <PopulationPage>
     <template #prefectures>
-      <p>Issue #25検証用の選択入力（#24の実装ではありません）</p>
+      <p>人口データ確認用の仮の選択入力。都道府県一覧 UI 実装時に差し替える</p>
       <template v-if="!proxyMode">
         <p>合成データによる確認画面です。実APIは使用しません。</p>
         <div class="fixture-actions">

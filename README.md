@@ -23,6 +23,12 @@ pnpm preview
 pnpm audit --audit-level=high
 ```
 
+## ディレクトリ規約
+
+- `src/pages/`: ページ骨格（レイアウトと slot）。
+- `src/components/<業務名>/`: 業務ごとの部品・composable・API 取得（`population/`、`prefectures/`）。
+- `src/components/shared/`: 業務判断を持たない汎用 UI。
+
 ## 確認範囲と残課題
 
 2026-10-06、Mac arm64 / Node 24.16.0 / pnpm 12.8.1 で、scripts 無効の frozen-lockfile 導入、別ディレクトリでの再現導入、Chrome の画面表示・HMR、Vite build を確認しました。

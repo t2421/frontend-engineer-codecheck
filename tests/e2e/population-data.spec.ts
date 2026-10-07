@@ -11,7 +11,7 @@ for (const width of [1440, 768, 390]) {
       requests.push(route.request().url())
       return route.fulfill({ json: populationResponse() })
     })
-    await page.goto('/tests/e2e/fixtures/population-data.html?mode=proxy')
+    await page.goto('/tests/preview/population-data.html?mode=proxy')
     const group = page.getByRole('radiogroup', { name: '人口区分' })
     const total = group.getByRole('radio', { name: '総人口', exact: true })
     await expect(total).toBeChecked()
@@ -67,7 +67,7 @@ test('HTTP失敗から再試行して現在の区分へ復帰（APIモック）'
       ? route.fulfill({ status: 503, json: { error: 'SERVICE_UNAVAILABLE' } })
       : route.fulfill({ json: populationResponse() }),
   )
-  await page.goto('/tests/e2e/fixtures/population-data.html?mode=proxy')
+  await page.goto('/tests/preview/population-data.html?mode=proxy')
   await page.getByRole('checkbox', { name: '北海道' }).check()
   await expect(page.getByRole('alert')).toContainText(
     'データを取得できませんでした',
@@ -93,7 +93,7 @@ test('解除後の遅延応答で表示県が復活しない（APIモック）',
     await gate
     await route.fulfill({ json: populationResponse() })
   })
-  await page.goto('/tests/e2e/fixtures/population-data.html?mode=proxy')
+  await page.goto('/tests/preview/population-data.html?mode=proxy')
   await page.getByRole('checkbox', { name: '北海道' }).check()
   await expect(
     page.getByRole('status').filter({ hasText: '人口データを読み込み中' }),
@@ -125,7 +125,7 @@ test('公開用fixtureは合成データで取得・再試行・遅延応答を�
     if (new URL(request.url()).pathname.startsWith('/api/'))
       requests.push(request.url())
   })
-  await page.goto('/tests/e2e/fixtures/population-data.html')
+  await page.goto('/tests/preview/population-data.html')
   await expect(
     page.getByText('合成データによる確認画面です。実APIは使用しません。'),
   ).toBeVisible({ timeout: 3000 })

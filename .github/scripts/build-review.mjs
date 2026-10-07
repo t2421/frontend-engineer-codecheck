@@ -3,7 +3,7 @@ import { readdir, mkdir, writeFile, copyFile } from 'node:fs/promises'
 import { build } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-const fixtureDirectory = 'tests/e2e/fixtures'
+const fixtureDirectory = 'tests/preview'
 const fixtures = (await readdir(fixtureDirectory).catch(() => []))
   .filter((file) => /^[a-z0-9-]+\.html$/.test(file))
   .sort()

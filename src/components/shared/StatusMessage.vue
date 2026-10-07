@@ -1,3 +1,7 @@
+<script lang="ts">
+export type StatusMessageState = 'empty' | 'loading' | 'error'
+</script>
+
 <script setup lang="ts">
 import emptyIcon from './assets/status-empty.svg'
 import loadingIcon from './assets/status-loading.svg'
@@ -5,7 +9,7 @@ import errorIcon from './assets/status-error.svg'
 
 withDefaults(
   defineProps<{
-    state: 'empty' | 'loading' | 'error'
+    state: StatusMessageState
     title: string
     description?: string
     headingLevel?: 2 | 3 | 4 | 5 | 6

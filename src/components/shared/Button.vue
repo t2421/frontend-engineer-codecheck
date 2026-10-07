@@ -5,10 +5,9 @@ const props = withDefaults(
   defineProps<{
     label: string
     disabled?: boolean
-    variant?: 'primary'
     type?: 'button' | 'submit' | 'reset'
   }>(),
-  { disabled: false, variant: 'primary', type: 'button' },
+  { disabled: false, type: 'button' },
 )
 
 const emit = defineEmits<{ click: [event: globalThis.MouseEvent] }>()
@@ -20,8 +19,7 @@ function handleClick(event: globalThis.MouseEvent) {
 
 <template>
   <button
-    class="button"
-    :class="`button-${variant}`"
+    class="button button-primary"
     :type="type"
     :disabled="disabled"
     @click="handleClick"

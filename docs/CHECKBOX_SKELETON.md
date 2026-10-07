@@ -1,6 +1,6 @@
 # チェックボックス用スケルトン
 
-Issue #9 の部品実装。`src/shared/ui/CheckboxSkeleton.vue` は操作要素を持たない装飾、`src/features/population/PrefectureSelectorSkeleton.vue` は47枠と読み込み通知を持つ一覧用部品。API取得、実チェックボックス生成、Appへの組み込みは含めない。親が初回読み込み中に表示し、成功・失敗時には対応する表示へ差し替える。
+Issue #9 の部品実装。`src/components/shared/CheckboxSkeleton.vue` は操作要素を持たない装飾、`src/components/prefectures/PrefectureSelectorSkeleton.vue` は47枠と読み込み通知を持つ一覧用部品。API取得、実チェックボックス生成、Appへの組み込みは含めない。親が初回読み込み中に表示し、成功・失敗時には対応する表示へ差し替える。
 
 ## デザインと依存
 
