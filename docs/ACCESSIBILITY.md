@@ -10,7 +10,7 @@
 | 既存PrefectureSelectorSkeleton・CheckboxSkeleton | statusの文言と47枠                 | 同じ4幅の部品fixture         |
 | 共通Button                                       | ラベル付きボタンの表示・無効状態   | 通常・hover・キーボードfocus |
 
-スケルトンは既存部品の独立fixtureで検査し、アプリの通信中状態を実装したものではない。初期画面は都道府県APIの契約に沿った固定モックで取得完了を待つ。県選択・全解除・スマホ開閉・一覧loading/error/retryは合成fixtureで1440/390/320pxを検査する。人口区分切替・人口通信・グラフはこの自動検査の対象外。既存のスキップリンクとButtonのEnter / Space / Tab操作テストを維持する。
+スケルトンは既存部品の独立fixtureで検査し、アプリの通信中状態を実装したものではない。初期画面は都道府県APIの契約に沿った固定モックで取得完了を待つ。県選択・全解除・スマホ開閉・一覧loading/error/retryは合成fixtureで1440/390/320pxを検査する。最新mainの人口グラフfixtureに対するempty・selected・elder・table・clearedの検査も維持する。実上流通信は自動検査の対象外。既存のスキップリンクとButtonのEnter / Space / Tab操作テストを維持する。
 
 ## 判定と成果物
 
