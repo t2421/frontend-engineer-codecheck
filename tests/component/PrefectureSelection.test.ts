@@ -13,6 +13,61 @@ const prefectures = [
   { prefCode: 13, prefName: '東京都' },
   { prefCode: 1, prefName: '北海道' },
 ]
+test.each([
+  {
+    scenario: '一覧取得中で未選択',
+    status: 'loading',
+    modelValue: [],
+    expected: '都道府県一覧を読み込んでいます…',
+  },
+  {
+    scenario: '一覧取得失敗で未選択',
+    status: 'error',
+    modelValue: [],
+    expected: '都道府県一覧を取得できませんでした',
+  },
+  {
+    scenario: '一覧取得済みで未選択',
+    status: 'ready',
+    modelValue: [],
+    expected: '都道府県は未選択です',
+  },
+  {
+    scenario: '取得状態の指定がなく未選択',
+    status: undefined,
+    modelValue: [],
+    expected: '都道府県は未選択です',
+  },
+  {
+    scenario: '一覧取得中でも選択済み',
+    status: 'loading',
+    modelValue: [1, 13],
+    expected: '東京都、北海道',
+  },
+  {
+    scenario: '一覧取得失敗でも選択済み',
+    status: 'error',
+    modelValue: [1, 13],
+    expected: '東京都、北海道',
+  },
+] as const)('スマホで$scenarioの場合は「$expected」を案内する', (example) => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  )
+  const wrapper = mount(PrefectureSelector, {
+    props: {
+      prefectures,
+      status: example.status,
+      modelValue: example.modelValue,
+    },
+  })
+  expect(wrapper.text()).toContain(example.expected)
+})
 test('API順で動的表示し複数選択・個別解除・連続操作・全解除を親に伝える', async () => {
   const Host = defineComponent({
     components: { PrefectureSelector },

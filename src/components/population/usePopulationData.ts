@@ -18,73 +18,91 @@ export type PopulationStatus = StatusMessageState | 'ready'
 export type PopulationLoader = (
   prefCode: number,
 ) => Promise<PopulationComposition>
-type Entry =
-  | { status: 'loading' | 'error'; request: symbol }
-  | { status: 'ready'; request: symbol; data: PopulationComposition }
+type PopulationEntry =
+  | { status: 'loading' | 'error'; requestId: symbol }
+  | { status: 'ready'; requestId: symbol; data: PopulationComposition }
 
 export function usePopulationData(
-  selected: MaybeRefOrGetter<readonly SelectedPrefecture[]>,
+  selectedPrefectures: MaybeRefOrGetter<readonly SelectedPrefecture[]>,
   category: MaybeRefOrGetter<PopulationCategory>,
   loader: PopulationLoader = fetchPopulation,
 ) {
-  const entries = shallowReactive(new Map<number, Entry>())
+  const populationByPrefCode = shallowReactive(
+    new Map<number, PopulationEntry>(),
+  )
   // scope 破棄後に届いた応答で reactive state を更新しないため。
-  let active = true
+  let isScopeActive = true
   onScopeDispose(() => {
-    active = false
+    isScopeActive = false
   })
-  // 同じ prefCode が重複して渡された場合に 1 件にまとめる。
-  const prefectures = computed(() => [
-    ...new Map(toValue(selected).map((p) => [p.prefCode, p])).values(),
+  const uniqueSelectedPrefectures = computed(() => [
+    ...new Map(
+      toValue(selectedPrefectures).map((prefecture) => [
+        prefecture.prefCode,
+        prefecture,
+      ]),
+    ).values(),
   ])
-  async function load(code: number) {
-    const request = Symbol()
-    entries.set(code, { status: 'loading', request })
+  async function loadPopulation(prefCode: number) {
+    const requestId = Symbol()
+    populationByPrefCode.set(prefCode, { status: 'loading', requestId })
     try {
-      const data = await loader(code)
-      if (active && entries.get(code)?.request === request)
-        entries.set(code, { status: 'ready', request, data })
+      const data = await loader(prefCode)
+      if (
+        isScopeActive &&
+        populationByPrefCode.get(prefCode)?.requestId === requestId
+      )
+        populationByPrefCode.set(prefCode, { status: 'ready', requestId, data })
     } catch {
-      if (active && entries.get(code)?.request === request)
-        entries.set(code, { status: 'error', request })
+      if (
+        isScopeActive &&
+        populationByPrefCode.get(prefCode)?.requestId === requestId
+      )
+        populationByPrefCode.set(prefCode, { status: 'error', requestId })
     }
   }
   watch(
-    prefectures,
-    (current, previous = []) => {
-      const previousCodes = new Set(previous.map((p) => p.prefCode))
-      for (const { prefCode } of current) {
-        const entry = entries.get(prefCode)
-        if (
-          !entry ||
-          (entry.status === 'error' && !previousCodes.has(prefCode))
-        )
-          void load(prefCode)
+    uniqueSelectedPrefectures,
+    (currentPrefectures, previousPrefectures = []) => {
+      const previousPrefCodes = new Set(
+        previousPrefectures.map((prefecture) => prefecture.prefCode),
+      )
+      for (const { prefCode } of currentPrefectures) {
+        const entry = populationByPrefCode.get(prefCode)
+        const isFailedPrefectureSelectedAgain =
+          entry?.status === 'error' && !previousPrefCodes.has(prefCode)
+        if (!entry || isFailedPrefectureSelectedAgain) {
+          void loadPopulation(prefCode)
+        }
       }
     },
     { immediate: true },
   )
   const status = computed<PopulationStatus>(() => {
-    if (!prefectures.value.length) return 'empty'
+    if (!uniqueSelectedPrefectures.value.length) return 'empty'
     if (
-      prefectures.value.some((p) => entries.get(p.prefCode)?.status === 'error')
+      uniqueSelectedPrefectures.value.some(
+        (prefecture) =>
+          populationByPrefCode.get(prefecture.prefCode)?.status === 'error',
+      )
     )
       return 'error'
     if (
-      prefectures.value.some(
-        (p) => entries.get(p.prefCode)?.status === 'loading',
+      uniqueSelectedPrefectures.value.some(
+        (prefecture) =>
+          populationByPrefCode.get(prefecture.prefCode)?.status === 'loading',
       )
     )
       return 'loading'
     return 'ready'
   })
   const series = computed<PopulationSeries[]>(() =>
-    prefectures.value.flatMap((p) => {
-      const entry = entries.get(p.prefCode)
+    uniqueSelectedPrefectures.value.flatMap((prefecture) => {
+      const entry = populationByPrefCode.get(prefecture.prefCode)
       return entry?.status === 'ready'
         ? [
             {
-              ...p,
+              ...prefecture,
               boundaryYear: entry.data.boundaryYear,
               data: entry.data.categories[toValue(category)],
             },
@@ -93,8 +111,9 @@ export function usePopulationData(
     }),
   )
   function retry() {
-    for (const { prefCode } of prefectures.value)
-      if (entries.get(prefCode)?.status === 'error') void load(prefCode)
+    for (const { prefCode } of uniqueSelectedPrefectures.value)
+      if (populationByPrefCode.get(prefCode)?.status === 'error')
+        void loadPopulation(prefCode)
   }
   return { status, series, retry }
 }

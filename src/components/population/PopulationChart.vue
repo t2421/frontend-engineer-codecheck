@@ -8,6 +8,7 @@ import {
   LinearScale,
   Tooltip,
   type Point,
+  type ChartOptions,
 } from 'chart.js'
 import { toFont } from 'chart.js/helpers'
 import {
@@ -49,11 +50,10 @@ function syncChart() {
     return
   }
   const css = getComputedStyle(canvas.value)
-  const token = (name: string) => css.getPropertyValue(name).trim()
-  const data = createPopulationChartData(
-    props.series,
-    seriesColorTokens.map(token),
+  const colors = seriesColorTokens.map((token) =>
+    css.getPropertyValue(token).trim(),
   )
+  const data = createPopulationChartData(props.series, colors)
   if (chart) {
     chart.data = data
     chart.update('none')
@@ -62,69 +62,7 @@ function syncChart() {
   chart = new Chart<'line', Point[]>(canvas.value, {
     type: 'line',
     data,
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      onResize(instance, size) {
-        const ticks = instance.options.scales?.y?.ticks
-        if (ticks) ticks.maxTicksLimit = size.width < 480 ? 3 : 5
-      },
-      color: token('--color-text-secondary'),
-      font: { family: token('--font-family'), size: parseFloat(css.fontSize) },
-      interaction: { mode: 'nearest', intersect: false },
-      plugins: {
-        tooltip: {
-          callbacks: {
-            title: (items) => `${items[0]?.parsed.x}年`,
-            label: (item) =>
-              `${item.dataset.label}: ${formatPeople(item.parsed.y ?? 0)}`,
-          },
-        },
-      },
-      scales: {
-        x: {
-          type: 'linear',
-          bounds: 'data',
-          afterBuildTicks(scale) {
-            const ctx = scale.chart.ctx
-            ctx.save()
-            ctx.font = toFont(Chart.defaults.font).string
-            const labelWidth = Math.max(
-              0,
-              ...props.series.flatMap((s) =>
-                s.data.map((p) => ctx.measureText(String(p.year)).width),
-              ),
-            )
-            ctx.restore()
-            scale.ticks = yearTicks(
-              props.series,
-              innerWidth,
-              scale.width,
-              labelWidth,
-            ).map((value) => ({ value }))
-          },
-          grid: { display: false },
-          border: { display: false },
-          title: { display: true, text: '年', align: 'end' },
-          ticks: {
-            precision: 0,
-            maxRotation: 0,
-            autoSkip: false,
-            callback: (value) => `${value}`,
-          },
-        },
-        y: {
-          beginAtZero: true,
-          border: { display: false },
-          grid: { color: token('--color-border-default') },
-          ticks: {
-            maxTicksLimit: 5,
-            callback: (value) => Number(value) / 10000,
-          },
-        },
-      },
-    },
+    options: createChartOptions(css),
   })
 }
 onMounted(() => {
@@ -142,6 +80,73 @@ onBeforeUnmount(() => {
   mounted = false
   destroy()
 })
+
+function createChartOptions(css: CSSStyleDeclaration): ChartOptions<'line'> {
+  const token = (name: string) => css.getPropertyValue(name).trim()
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    onResize(instance, size) {
+      const ticks = instance.options.scales?.y?.ticks
+      if (ticks) ticks.maxTicksLimit = size.width < 480 ? 3 : 5
+    },
+    color: token('--color-text-secondary'),
+    font: { family: token('--font-family'), size: parseFloat(css.fontSize) },
+    interaction: { mode: 'nearest', intersect: false },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          title: (items) => `${items[0]?.parsed.x}年`,
+          label: (item) =>
+            `${item.dataset.label}: ${formatPeople(item.parsed.y ?? 0)}`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        type: 'linear',
+        bounds: 'data',
+        afterBuildTicks(scale) {
+          const ctx = scale.chart.ctx
+          ctx.save()
+          ctx.font = toFont(Chart.defaults.font).string
+          const labelWidth = Math.max(
+            0,
+            ...props.series.flatMap((s) =>
+              s.data.map((p) => ctx.measureText(String(p.year)).width),
+            ),
+          )
+          ctx.restore()
+          scale.ticks = yearTicks(
+            props.series,
+            innerWidth,
+            scale.width,
+            labelWidth,
+          ).map((value) => ({ value }))
+        },
+        grid: { display: false },
+        border: { display: false },
+        title: { display: true, text: '年', align: 'end' },
+        ticks: {
+          precision: 0,
+          maxRotation: 0,
+          autoSkip: false,
+          callback: (value) => `${value}`,
+        },
+      },
+      y: {
+        beginAtZero: true,
+        border: { display: false },
+        grid: { color: token('--color-border-default') },
+        ticks: {
+          maxTicksLimit: 5,
+          callback: (value) => Number(value) / 10000,
+        },
+      },
+    },
+  }
+}
 </script>
 
 <template>

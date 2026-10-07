@@ -48,18 +48,17 @@ onMounted(() => viewport?.addEventListener('change', updateViewport))
 onScopeDispose(() => viewport?.removeEventListener('change', updateViewport))
 const listId = useId()
 const selected = computed(() => new Set(props.modelValue))
-const summary = computed(
-  () =>
-    props.prefectures
-      .filter((p) => selected.value.has(p.prefCode))
-      .map((p) => p.prefName)
-      .join('、') ||
-    (props.status === 'loading'
-      ? '都道府県一覧を読み込んでいます…'
-      : props.status === 'error'
-        ? '都道府県一覧を取得できませんでした'
-        : '都道府県は未選択です'),
-)
+const selectionSummary = computed(() => {
+  const selectedNames = props.prefectures
+    .filter((prefecture) => selected.value.has(prefecture.prefCode))
+    .map((prefecture) => prefecture.prefName)
+    .join('、')
+
+  if (selectedNames) return selectedNames
+  if (props.status === 'loading') return '都道府県一覧を読み込んでいます…'
+  if (props.status === 'error') return '都道府県一覧を取得できませんでした'
+  return '都道府県は未選択です'
+})
 function select(code: number, checked: boolean) {
   const next = new Set(props.modelValue)
   if (checked) next.add(code)
@@ -96,7 +95,7 @@ function select(code: number, checked: boolean) {
       />
     </div>
     <p class="selector-description">比較したい都道府県を選択（複数選択可）</p>
-    <p class="selection-summary">{{ summary }}</p>
+    <p class="selection-summary">{{ selectionSummary }}</p>
     <fieldset :id="listId" class="prefecture-list">
       <legend class="visually-hidden">比較する都道府県（複数選択可）</legend>
       <slot name="list">
