@@ -32,6 +32,56 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
   })
 
   for (const width of [1440, 768, 390, 320]) {
+    for (const state of ['empty', 'selected', 'elder', 'table', 'cleared']) {
+      test(`人口グラフ ${state} ${width}px`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width, height: 1100 })
+        await page.goto('/tests/e2e/fixtures/population-chart.html')
+        await expect(page.getByRole('status')).toContainText(
+          '都道府県を選択すると',
+        )
+        if (state !== 'empty') {
+          for (const name of ['東京都', '大阪府', '北海道'])
+            await page.getByRole('checkbox', { name, exact: true }).check()
+          await expect(page.locator('canvas')).toBeVisible()
+          expect(
+            await page.locator('canvas').evaluate((canvas) => {
+              const element = canvas as HTMLCanvasElement
+              return element
+                .getContext('2d')!
+                .getImageData(0, 0, element.width, element.height)
+                .data.some((value) => value !== 0)
+            }),
+          ).toBe(true)
+        }
+        if (state === 'elder') {
+          await page
+            .getByRole('radio', { name: '老年人口', exact: true })
+            .check()
+          await expect(page.locator('canvas')).toHaveAttribute(
+            'aria-label',
+            /老年人口/,
+          )
+        }
+        if (state === 'table') {
+          await page.locator('summary').focus()
+          await page.keyboard.press('Enter')
+          await expect(
+            page.getByRole('cell', { name: '7,600,000人', exact: true }),
+          ).toBeVisible()
+        }
+        if (state === 'cleared') {
+          await page
+            .getByRole('button', { name: '選択を解除', exact: true })
+            .click()
+          await expect(page.getByRole('status')).toContainText(
+            '都道府県を選択すると',
+          )
+          await expect(page.locator('canvas')).toHaveCount(0)
+        }
+        await checkAccessibility(page, testInfo)
+      })
+    }
+
     test(`初期画面 ${width}px`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 1000 })
       await page.goto('/')

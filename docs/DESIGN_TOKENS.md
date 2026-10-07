@@ -22,7 +22,9 @@
 | color-focus                                                     | #1558d6                     | キーボードフォーカス、操作部品                     |
 | color-disabled-bg / color-disabled-text                         | #e8edf2 / #6e7b88           | 無効状態、操作部品                                 |
 | color-status-error / color-status-error-bg                      | #b42318 / #fff2f0           | エラー表示、グラフ状態部品                         |
-| color-series-1 / color-series-2 / color-series-3                | #1558d6 / #087d75 / #ac5710 | Figmaの3系列。47県への割当はグラフ実装で決定       |
+| color-series-1 / color-series-2 / color-series-3                | #1558d6 / #087d75 / #ac5710 | Figmaの3系列。東京都・大阪府・北海道へ固定割当     |
+
+追加の実線・固定色の依頼に合わせ、`--color-series-4`〜`--color-series-47`を追加。これらはFigma変数ではなく、白背景とのコントラストを確保して選んだグラフ用の色です。全47県の割当・値・配色の限界は[人口グラフの追加変更](./POPULATION_CHART.md#実線固定色への追加変更)を参照してください。
 
 ## 文字
 
