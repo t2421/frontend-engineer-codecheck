@@ -1,7 +1,7 @@
 import { populationPath, prefecturesPath } from './config'
 
 type RequestValidation =
-  | { ok: true; path: string }
+  | { ok: true; upstreamPath: string }
   | { ok: false; status: 400 | 404 | 405; code: string }
 
 export function validateRequest(method: string, url: URL): RequestValidation {
@@ -17,34 +17,40 @@ export function validateRequest(method: string, url: URL): RequestValidation {
     if (parameters.length !== 0) {
       return { ok: false, status: 400, code: 'INVALID_REQUEST' }
     }
-    return { ok: true, path: prefecturesPath }
+    return { ok: true, upstreamPath: prefecturesPath }
   }
 
-  const code = url.searchParams.get('prefCode') ?? ''
+  const prefCode = url.searchParams.get('prefCode') ?? ''
   if (
     parameters.length !== 1 ||
-    parameters[0]?.[0] !== 'prefCode' ||
-    !/^(?:[1-9]|[1-3][0-9]|4[0-7])$/.test(code)
+    !/^(?:[1-9]|[1-3][0-9]|4[0-7])$/.test(prefCode)
   ) {
     return { ok: false, status: 400, code: 'INVALID_REQUEST' }
   }
   // 入力URLを変更せず、許可済みの値から上流向けのパスを作る。
   return {
     ok: true,
-    path: `${populationPath}?${new URLSearchParams({ prefCode: code })}`,
+    upstreamPath: `${populationPath}?${new URLSearchParams({ prefCode })}`,
   }
 }
 
-export function isValidResponse(data: unknown, key: string): boolean {
-  // エラーenvelope・上流によるSecret反射をブラウザーへ返さない。
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'message' in data &&
-    data.message === null &&
-    'result' in data &&
-    typeof data.result === 'object' &&
-    data.result !== null &&
-    !JSON.stringify(data).includes(JSON.stringify(key).slice(1, -1))
-  )
+export function isSafeUpstreamResponse(
+  responseData: unknown,
+  apiKey: string,
+): boolean {
+  if (typeof responseData !== 'object' || responseData === null) return false
+  if (!('message' in responseData) || responseData.message !== null)
+    return false
+  if (
+    !('result' in responseData) ||
+    typeof responseData.result !== 'object' ||
+    responseData.result === null
+  ) {
+    return false
+  }
+
+  // JSON解析後に同じ形式で直列化し、特殊文字やUnicode escapeによるSecret反射も検出する。
+  const serializedResponse = JSON.stringify(responseData)
+  const serializedApiKey = JSON.stringify(apiKey).slice(1, -1)
+  return !serializedResponse.includes(serializedApiKey)
 }

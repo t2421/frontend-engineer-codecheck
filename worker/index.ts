@@ -1,5 +1,5 @@
 import { retryAfterSeconds, upstreamOrigin, upstreamTimeoutMs } from './config'
-import { isValidResponse, validateRequest } from './validation'
+import { isSafeUpstreamResponse, validateRequest } from './validation'
 
 interface Env {
   YUMEMI_API_KEY?: string
@@ -8,22 +8,44 @@ interface Env {
   }
 }
 
-function error(
+function errorResponse(
   status: number,
   code: string,
-  headers: HeadersInit = {},
+  extraHeaders: Record<string, string> = {},
 ): Response {
   return Response.json(
     { error: code },
-    { status, headers: { 'Cache-Control': 'no-store', ...headers } },
+    { status, headers: { 'Cache-Control': 'no-store', ...extraHeaders } },
   )
 }
 
-async function proxy(path: string, key: string): Promise<Response> {
+async function fetchUpstreamJson(
+  upstreamPath: string,
+  apiKey: string,
+  signal: AbortSignal,
+): Promise<unknown> {
+  // 固定originと検証済みのパス・queryだけを使用し、認証情報やredirectを転送しない。
+  const response = await fetch(`${upstreamOrigin}${upstreamPath}`, {
+    method: 'GET',
+    headers: { 'X-API-KEY': apiKey },
+    redirect: 'manual',
+    signal,
+  })
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new Error('Upstream error')
+  }
+  return response.json()
+}
+
+async function proxyApiRequest(
+  upstreamPath: string,
+  apiKey: string,
+): Promise<Response> {
   const controller = new AbortController()
   let timedOut = false
   let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<never>((_, reject) => {
+  const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       timedOut = true
       controller.abort()
@@ -32,32 +54,21 @@ async function proxy(path: string, key: string): Promise<Response> {
   })
 
   try {
-    const data = await Promise.race([
-      (async () => {
-        // 固定originと検証済みのパス・queryだけを使用し、認証情報やredirectを転送しない。
-        const response = await fetch(`${upstreamOrigin}${path}`, {
-          method: 'GET',
-          headers: { 'X-API-KEY': key },
-          redirect: 'manual',
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          await response.body?.cancel()
-          throw new Error('Upstream error')
-        }
-        return (await response.json()) as unknown
-      })(),
-      timeout,
+    const upstreamData = await Promise.race([
+      fetchUpstreamJson(upstreamPath, apiKey, controller.signal),
+      timeoutPromise,
     ])
-    if (!isValidResponse(data, key)) {
-      return error(502, 'UPSTREAM_ERROR')
+    if (!isSafeUpstreamResponse(upstreamData, apiKey)) {
+      return errorResponse(502, 'UPSTREAM_ERROR')
     }
-    return Response.json(data, { headers: { 'Cache-Control': 'no-store' } })
+    return Response.json(upstreamData, {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   } catch {
     // 上流の例外・本文・ヘッダーを応答やログに露出させない。
     return timedOut
-      ? error(504, 'UPSTREAM_TIMEOUT')
-      : error(502, 'UPSTREAM_ERROR')
+      ? errorResponse(504, 'UPSTREAM_TIMEOUT')
+      : errorResponse(502, 'UPSTREAM_ERROR')
   } finally {
     clearTimeout(timer)
   }
@@ -72,28 +83,28 @@ export default {
 
     // 本番ではCloudflareが設定するIPだけを使い、両API共通のキーで制限する。
     const ip = request.headers.get('CF-Connecting-IP')
-    if (!ip) return error(503, 'SERVICE_UNAVAILABLE')
+    if (!ip) return errorResponse(503, 'SERVICE_UNAVAILABLE')
     try {
       const { success } = await env.API_RATE_LIMITER.limit({ key: `ip:${ip}` })
       if (!success)
-        return error(429, 'RATE_LIMITED', {
+        return errorResponse(429, 'RATE_LIMITED', {
           'Retry-After': String(retryAfterSeconds),
         })
     } catch {
-      return error(503, 'SERVICE_UNAVAILABLE')
+      return errorResponse(503, 'SERVICE_UNAVAILABLE')
     }
 
     const validation = validateRequest(request.method, url)
     if (!validation.ok) {
-      return error(
+      return errorResponse(
         validation.status,
         validation.code,
         validation.status === 405 ? { Allow: 'GET' } : {},
       )
     }
 
-    const key = env.YUMEMI_API_KEY
-    if (!key?.trim()) return error(503, 'SERVICE_UNAVAILABLE')
-    return proxy(validation.path, key)
+    const apiKey = env.YUMEMI_API_KEY
+    if (!apiKey?.trim()) return errorResponse(503, 'SERVICE_UNAVAILABLE')
+    return proxyApiRequest(validation.upstreamPath, apiKey)
   },
 }
