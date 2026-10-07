@@ -66,11 +66,9 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
           )
         }
         if (state === 'table') {
-          await page.locator('summary').focus()
-          await page.keyboard.press('Enter')
           await expect(
             page.getByRole('cell', { name: '7,600,000人', exact: true }),
-          ).toBeVisible()
+          ).toHaveCount(1)
         }
         if (state === 'cleared') {
           await page

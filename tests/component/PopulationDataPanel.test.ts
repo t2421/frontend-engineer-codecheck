@@ -151,3 +151,49 @@ test('共通StatusMessageの状態とaction slotで再試行し、成功時に�
   expect(wrapper.get('output').text()).toContain('"value":100')
   expect(loader).toHaveBeenCalledTimes(2)
 })
+
+test('失敗県は解除後の再選択で再取得し、成功キャッシュは維持する', async () => {
+  const loader = vi
+    .fn()
+    .mockResolvedValueOnce(parsePopulation(populationResponse()))
+    .mockRejectedValueOnce(new Error('internal'))
+    .mockResolvedValue(parsePopulation(populationResponse(200)))
+  const { wrapper } = render(loader, prefectures)
+  await flushPromises()
+  await wrapper.setProps({ selectedPrefectures: prefectures.slice(0, 1) })
+  await wrapper.setProps({ selectedPrefectures: prefectures })
+  await flushPromises()
+  expect(loader.mock.calls.map((c) => c[0])).toEqual([1, 13, 13])
+  expect(wrapper.get('output').text()).toContain('東京都')
+  expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+})
+
+test('別県が読み込み中でも既存の失敗案内と再試行を維持する', async () => {
+  const loader = vi
+    .fn()
+    .mockResolvedValueOnce(parsePopulation(populationResponse()))
+    .mockRejectedValueOnce(new Error('internal'))
+    .mockImplementation(() => new Promise(() => {}))
+  const { wrapper } = render(loader, prefectures)
+  await flushPromises()
+  await wrapper.setProps({
+    selectedPrefectures: [...prefectures, { prefCode: 27, prefName: '大阪府' }],
+  })
+  expect(wrapper.getComponent(StatusMessage).props('state')).toBe('error')
+  expect(wrapper.get('button').text()).toBe('再読み込み')
+  expect(wrapper.get('output').text()).toContain('北海道')
+  await wrapper.get('button').trigger('click')
+  expect(loader.mock.calls.map((c) => c[0])).toEqual([1, 13, 27, 13])
+})
+
+test('追加取得中は既存データを維持してコンパクトな状態表示にする', async () => {
+  const loader = vi
+    .fn()
+    .mockResolvedValueOnce(parsePopulation(populationResponse()))
+    .mockImplementation(() => new Promise(() => {}))
+  const { wrapper } = render(loader)
+  await flushPromises()
+  await wrapper.setProps({ selectedPrefectures: prefectures })
+  expect(wrapper.getComponent(StatusMessage).props('compact')).toBe(true)
+  expect(wrapper.get('output').text()).toContain('北海道')
+})

@@ -1,7 +1,6 @@
 import {
   computed,
   onScopeDispose,
-  ref,
   shallowReactive,
   toValue,
   watch,
@@ -25,14 +24,16 @@ type Entry =
 
 export function usePopulationData(
   selected: MaybeRefOrGetter<readonly SelectedPrefecture[]>,
+  category: MaybeRefOrGetter<PopulationCategory>,
   loader: PopulationLoader = fetchPopulation,
 ) {
-  const category = ref<PopulationCategory>('total')
   const entries = shallowReactive(new Map<number, Entry>())
+  // scope 破棄後に届いた応答で reactive state を更新しないため。
   let active = true
   onScopeDispose(() => {
     active = false
   })
+  // 同じ prefCode が重複して渡された場合に 1 件にまとめる。
   const prefectures = computed(() => [
     ...new Map(toValue(selected).map((p) => [p.prefCode, p])).values(),
   ])
@@ -50,24 +51,31 @@ export function usePopulationData(
   }
   watch(
     prefectures,
-    (current) => {
-      for (const { prefCode } of current)
-        if (!entries.has(prefCode)) void load(prefCode)
+    (current, previous = []) => {
+      const previousCodes = new Set(previous.map((p) => p.prefCode))
+      for (const { prefCode } of current) {
+        const entry = entries.get(prefCode)
+        if (
+          !entry ||
+          (entry.status === 'error' && !previousCodes.has(prefCode))
+        )
+          void load(prefCode)
+      }
     },
     { immediate: true },
   )
   const status = computed<PopulationStatus>(() => {
     if (!prefectures.value.length) return 'empty'
     if (
+      prefectures.value.some((p) => entries.get(p.prefCode)?.status === 'error')
+    )
+      return 'error'
+    if (
       prefectures.value.some(
         (p) => entries.get(p.prefCode)?.status === 'loading',
       )
     )
       return 'loading'
-    if (
-      prefectures.value.some((p) => entries.get(p.prefCode)?.status === 'error')
-    )
-      return 'error'
     return 'ready'
   })
   const series = computed<PopulationSeries[]>(() =>
@@ -78,7 +86,7 @@ export function usePopulationData(
             {
               ...p,
               boundaryYear: entry.data.boundaryYear,
-              data: entry.data.categories[category.value],
+              data: entry.data.categories[toValue(category)],
             },
           ]
         : []
@@ -88,5 +96,5 @@ export function usePopulationData(
     for (const { prefCode } of prefectures.value)
       if (entries.get(prefCode)?.status === 'error') void load(prefCode)
   }
-  return { category, status, series, retry }
+  return { status, series, retry }
 }

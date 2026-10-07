@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import PopulationPage from '../../src/pages/PopulationPage.vue'
+import FixtureLayout from './FixtureLayout.vue'
 import PopulationDataPanel from '../../src/components/population/PopulationDataPanel.vue'
 import Checkbox from '../../src/components/shared/Checkbox.vue'
 import Button from '../../src/components/shared/Button.vue'
@@ -128,7 +128,7 @@ function select(code: number, checked: boolean) {
 }
 </script>
 <template>
-  <PopulationPage>
+  <FixtureLayout>
     <template #prefecture-actions>
       <Button label="選択を解除" @click="selected = []" />
       <Button label="全47県を選択" @click="selected = codes" />
@@ -154,7 +154,7 @@ function select(code: number, checked: boolean) {
         :loader="loader"
       />
     </template>
-  </PopulationPage>
+  </FixtureLayout>
 </template>
 <style scoped>
 .fixture-prefectures {

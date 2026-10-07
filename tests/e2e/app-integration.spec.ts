@@ -73,10 +73,9 @@ for (const width of [1440, 768, 390, 320]) {
     expect(initial.count).toBe(1)
     expect(initial.data?.map((d) => d.label)).toEqual(['北海道', '東京都'])
     if (width < 640) expect(initial.ticks).toEqual([1960, 1980, 2000, 2020])
-    await page.locator('summary').click()
     await expect(
       page.getByRole('cell', { name: '100,000人', exact: true }),
-    ).toBeVisible()
+    ).toHaveCount(1)
     for (const [label, offset] of [
       ['年少人口', 10000],
       ['生産年齢人口', 20000],
@@ -100,7 +99,6 @@ for (const width of [1440, 768, 390, 320]) {
     }
     expect(requests).toEqual([1, 13])
     await checkAccessibility(page, testInfo)
-    await page.locator('summary').click()
     await page.screenshot({
       path: `test-results/app-selected-${width}.png`,
       fullPage: true,
@@ -255,9 +253,96 @@ test('全体確認用fixtureは同じAppを使用しAPI通信せず人口値を�
   await page.goto('/tests/preview/app-integration.html')
   await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
   await expect(page.locator('canvas')).toBeVisible()
-  await page.locator('summary').click()
   await expect(
     page.getByRole('cell', { name: '1,300,000人', exact: true }),
-  ).toBeVisible()
+  ).toHaveCount(1)
   expect(requests).toEqual([])
 })
+
+for (const width of [1440, 320]) {
+  test(`${width}px: 既存グラフとcompact案内を維持し、失敗県の再選択で再取得する`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 1100 })
+    const calls: number[] = []
+    let tokyoAttempt = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route('**/api/v1/prefectures', (route) =>
+      route.fulfill({ json: prefectureResponse }),
+    )
+    await page.route(
+      '**/api/v1/population/composition/perYear?*',
+      async (route) => {
+        const code = Number(
+          new URL(route.request().url()).searchParams.get('prefCode'),
+        )
+        calls.push(code)
+        if (code === 13 && ++tokyoAttempt === 1)
+          return route.fulfill({
+            status: 503,
+            json: { error: 'SERVICE_UNAVAILABLE' },
+          })
+        if (code === 27) await gate
+        return route.fulfill({ json: appPopulationResponse(code) })
+      },
+    )
+    try {
+      await page.goto('/')
+      if (width < 640)
+        await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
+      await page.getByRole('checkbox', { name: '北海道', exact: true }).check()
+      await expect(page.locator('canvas')).toBeVisible()
+      const initial = await chartState(page)
+      await expect(page.locator('details, summary')).toHaveCount(0)
+      const dataBox = await page.locator('.chart-data').boundingBox()
+      expect(dataBox!.width).toBe(1)
+      expect(dataBox!.height).toBe(1)
+      await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
+      await expect(page.getByRole('alert')).toContainText(
+        'データを取得できませんでした',
+      )
+      await page.getByRole('checkbox', { name: '大阪府', exact: true }).check()
+      await expect(
+        page.getByRole('button', { name: '再読み込み' }),
+      ).toBeVisible()
+      await expect(page.getByRole('alert')).toContainText(
+        'データを取得できませんでした',
+      )
+      expect(
+        (await page.locator('.status-message-compact').boundingBox())!.height,
+      ).toBeLessThan(300)
+      expect((await chartState(page)).id).toBe(initial.id)
+      await checkAccessibility(page, testInfo)
+      await page
+        .getByRole('checkbox', { name: '東京都', exact: true })
+        .uncheck()
+      await expect(
+        page.getByRole('status').filter({ hasText: '人口データを読み込み中' }),
+      ).toBeVisible()
+      await checkAccessibility(page, testInfo)
+      await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
+      await expect(page.locator('.chart-legend li')).toHaveText([
+        '北海道',
+        '東京都',
+      ])
+      expect(calls).toEqual([1, 13, 27, 13])
+      release()
+      await expect(page.locator('.chart-legend li')).toHaveText([
+        '北海道',
+        '東京都',
+        '大阪府',
+      ])
+      expect((await chartState(page)).id).toBe(initial.id)
+      await page.screenshot({
+        path: `test-results/app-common-state-${width}.png`,
+        fullPage: true,
+      })
+      await checkAccessibility(page, testInfo)
+    } finally {
+      release()
+    }
+  })
+}
