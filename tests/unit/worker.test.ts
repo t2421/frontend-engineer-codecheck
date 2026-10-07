@@ -64,11 +64,7 @@ function expectDiagnostic(status: number, code: string) {
   expect(call[0]).not.toContain('X-API-KEY')
   expect(call[0]).not.toContain('browser-credential')
 }
-afterEach(() => {
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
-  vi.useRealTimers()
-})
+afterEach(() => vi.useRealTimers())
 
 for (const [path, body] of [
   [prefecturesPath, prefectures],

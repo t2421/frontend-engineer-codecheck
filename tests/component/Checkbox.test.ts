@@ -16,7 +16,6 @@ test('ラベルがネイティブcheckboxに関連付く', () => {
   expect(input.type).toBe('checkbox')
   expect(input.checked).toBe(false)
   expect(input.labels?.[0]?.textContent).toContain('任意の項目')
-  wrapper.unmount()
 })
 
 test('ラベルクリックでv-modelを選択・解除し、booleanを各1回通知する', async () => {
@@ -33,7 +32,6 @@ test('ラベルクリックでv-modelを選択・解除し、booleanを各1回�
   expect(wrapper.get('input').element.checked).toBe(false)
   expect(checkbox.emitted('update:modelValue')).toEqual([[true], [false]])
   expect(checkbox.emitted('change')).toEqual([[true], [false]])
-  wrapper.unmount()
 })
 
 test('親の選択状態変更を反映し、操作通知を出さない', async () => {
@@ -46,7 +44,6 @@ test('親の選択状態変更を反映し、操作通知を出さない', async
   expect(wrapper.get('input').element.checked).toBe(false)
   expect(wrapper.emitted('change')).toBeUndefined()
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-  wrapper.unmount()
 })
 
 test.each([false, true])(
@@ -62,7 +59,6 @@ test.each([false, true])(
     expect(wrapper.get('input').element.checked).toBe(selected)
     expect(wrapper.emitted('change')).toBeUndefined()
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-    wrapper.unmount()
   },
 )
 
@@ -73,7 +69,6 @@ test('disabled中にchangeが届いても通知しない', async () => {
   await wrapper.get('input').trigger('change')
   expect(wrapper.emitted('change')).toBeUndefined()
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-  wrapper.unmount()
 })
 
 test('無効解除後は入力クリックを通知する', async () => {
@@ -85,7 +80,6 @@ test('無効解除後は入力クリックを通知する', async () => {
   await wrapper.get('input').trigger('click')
   expect(wrapper.emitted('update:modelValue')).toEqual([[true]])
   expect(wrapper.emitted('change')).toEqual([[true]])
-  wrapper.unmount()
 })
 
 test('複数のラベルは各自のcheckboxだけを切り替える', async () => {
@@ -100,6 +94,4 @@ test('複数のラベルは各自のcheckboxだけを切り替える', async () 
   await second.get('label').trigger('click')
   expect(first.emitted('change')).toBeUndefined()
   expect(second.emitted('change')).toEqual([[true]])
-  first.unmount()
-  second.unmount()
 })

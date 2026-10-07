@@ -129,7 +129,9 @@ test('18点の端年を含め、ラベルの区間数をほぼ均等に分割す
   for (const width of [240, 320, 640, 1200]) {
     const ticks = yearTicks(withYears(years), width, 32)
     const indexes = ticks.map((year) => years.indexOf(year))
-    const intervals = indexes.slice(1).map((index, i) => index - indexes[i]!)
+    const intervals = indexes
+      .slice(1)
+      .map((index, i) => index - (indexes[i] ?? index))
     expect(indexes[0]).toBe(0)
     expect(indexes.at(-1)).toBe(17)
     expect(Math.max(...intervals) - Math.min(...intervals)).toBeLessThanOrEqual(
@@ -138,14 +140,13 @@ test('18点の端年を含め、ラベルの区間数をほぼ均等に分割す
   }
 })
 
-test('狭い描画幅ではラベル間に長めの余白を取り、端を残す', () => {
-  const years = Array.from({ length: 101 }, (_, i) => 1960 + i)
-  const ticks = yearTicks(withYears(years), 400, 32)
-  for (let i = 1; i < ticks.length; i++) {
-    expect(
-      ((ticks[i]! - ticks[i - 1]!) / 100) * (400 - 32),
-    ).toBeGreaterThanOrEqual(64)
+test('非PCでは描画幅にかかわらず実年範囲の両端だけを表示する', () => {
+  const years = Array.from({ length: 18 }, (_, i) => 1960 + i * 5)
+  for (const width of [240, 640, 1200]) {
+    expect(yearTicks(withYears(years), width, 32, true)).toEqual([1960, 2045])
   }
-  expect(ticks[0]).toBe(1960)
-  expect(ticks.at(-1)).toBe(2060)
+  expect(yearTicks(withYears([2024]), 240, 32, true)).toEqual([2024])
+  expect(
+    yearTicks(withYears([1963, 1964, 1979, 2020, 2057]), 240, 32, true),
+  ).toEqual([1963, 2057])
 })

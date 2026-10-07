@@ -31,8 +31,11 @@ function update(codes: number[]) {
     @update:model-value="update"
   >
     <template v-if="status !== 'ready'" #list>
+      <!-- 読み上げ領域はbusy領域の外に置き、読み込み中の通知が抑止されないようにする。 -->
+      <p v-if="status === 'loading'" role="status" class="loading-status">
+        都道府県一覧を読み込んでいます…
+      </p>
       <div v-if="status === 'loading'" class="loading-list" aria-busy="true">
-        <p role="status">都道府県一覧を読み込んでいます…</p>
         <div class="loading-grid" aria-hidden="true">
           <CheckboxSkeleton v-for="item in 47" :key="item" />
         </div>
@@ -51,9 +54,12 @@ function update(codes: number[]) {
   </PrefectureSelector>
 </template>
 <style scoped>
+.loading-status {
+  margin-block-end: var(--space-20);
+  color: var(--color-text-secondary);
+}
+
 .loading-list {
-  display: grid;
-  gap: var(--space-16);
   color: var(--color-text-secondary);
   container-type: inline-size;
 }

@@ -205,7 +205,7 @@ for (const [rule, html] of [
       'WCAG A/AA violations',
     )
     const attachment = testInfo.attachments.find(
-      (item) => item.name === 'axe-results',
+      (item) => item.name === 'axe-results-1',
     )
     expect(attachment?.path).toBeTruthy()
     const results = JSON.parse(await readFile(attachment!.path!, 'utf8'))
@@ -228,7 +228,7 @@ test('判定不能のコントラストは失敗にせず手動確認結果と�
     'manual-review',
   )
   const saved = JSON.parse(
-    await readFile(testInfo.outputPath('accessibility.json'), 'utf8'),
+    await readFile(testInfo.outputPath('accessibility-1.json'), 'utf8'),
   )
   expect(saved.incomplete).toEqual(results.incomplete)
 })

@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import {
   fetchPrefectures,
   parsePrefectures,
@@ -7,7 +7,6 @@ const result = [
   { prefCode: 13, prefName: '東京都' },
   { prefCode: 1, prefName: '北海道' },
 ]
-afterEach(() => vi.unstubAllGlobals())
 test('API順のcode/nameを取得し同一オリジンのGETだけを使う', async () => {
   const fetch = vi
     .fn()

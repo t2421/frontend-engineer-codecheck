@@ -6,12 +6,26 @@ Node.js **24.16.0**とpnpm **12.8.1**、Google Chromeを使います。準備で
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm dev
 ```
 
-表示された`http://127.0.0.1:ポート番号`を開きます。Vueファイルを編集すると画面に反映され、Ctrl+Cで停止します。ポート競合時は`pnpm dev --port 5176 --strictPort`を指定できます。
+実APIを使うには、次の手順でAPIキーを設定します。
 
-実APIを使う場合は、Gitに含めない`.dev.vars`に`YUMEMI_API_KEY`を設定します。`VITE_*`や公開varsへ入れず、値をチャット・ログ・コマンド引数へ出しません。未設定でもbuildとモックテストは可能で、APIは503です。[API契約](./API_PROXY.md)を参照してください。
+1. [公式APIドキュメントの「APIキーの設定について」](https://github.com/yumemi-inc/frontend-engineer-codecheck/blob/main/docs/api.md#-api-キーの設定について)でキーを確認します。
+2. プロジェクト直下（`package.json`と同じフォルダ）に`.dev.vars`を作り、次の例の`取得したAPIキー`を本人が置き換えて保存します。
+
+   ```dotenv
+   YUMEMI_API_KEY="取得したAPIキー"
+   ```
+
+3. 以下で開発サーバーを起動します。起動中にキーを変更した場合は、Ctrl+Cで停止して起動し直します。
+
+   ```sh
+   pnpm dev
+   ```
+
+`.dev.vars`はgitignore対象です。コミットせず、キーを`VITE_*`や公開vars、チャット・ログ・コマンド引数へ入れないでください。キーが未設定の場合、実APIからデータを取得できずAPIは503になります。buildやモックテストにはキーは不要です。[API契約](./API_PROXY.md)も参照してください。
+
+表示された`http://127.0.0.1:ポート番号`を開きます。Vueファイルを編集すると画面に反映され、Ctrl+Cで停止します。ポート競合時は`pnpm dev --port 5176 --strictPort`を指定できます。
 
 ## 検証の入口
 
@@ -26,7 +40,7 @@ pnpm dev
 
 `pnpm test:watch`でVitestを継続実行、`pnpm format`で整形できます。個別コマンドは[package.json](../package.json)を参照してください。
 
-画面テストは専用サーバーを自動で起動・停止し、インストール済みのChromeを使います。詳細は[Playwright設定](../playwright.config.ts)を参照してください。HTMLレポートは`pnpm test:e2e --reporter=list,html`の後、`pnpm exec playwright show-report`で開きます。[a11y手動確認](./ACCESSIBILITY.md)も行ってください。
+画面テストは専用サーバーを自動で起動・停止し、インストール済みのChromeを使います。詳細は[Playwright設定](../playwright.config.ts)を参照してください。HTMLレポートは`pnpm test:e2e --reporter=list,html`の後、`pnpm exec playwright show-report`で開きます。[a11y手動確認](./ACCESSIBILITY.md)も行ってください。実装とテストの書き方は[開発ガイドライン](./GUIDELINES.md)に従います。
 
 ## ローカルpreview
 

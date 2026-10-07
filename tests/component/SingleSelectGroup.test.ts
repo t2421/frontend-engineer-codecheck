@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'vitest'
+import { expect, test } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 import SingleSelectGroup from '../../src/components/shared/SingleSelectGroup.vue'
@@ -8,14 +8,11 @@ const options = [
   { value: 'second', label: '次の選択肢' },
   { value: 'third', label: '別の選択肢' },
 ]
-const wrappers: ReturnType<typeof mount>[] = []
-afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()))
 
 function render(props = {}) {
   const wrapper = mount(SingleSelectGroup, {
     props: { options, modelValue: 'second', label: '表示対象', ...props },
   })
-  wrappers.push(wrapper)
   return wrapper
 }
 
@@ -42,7 +39,6 @@ test('選択変更を一度通知し、v-modelで単一選択を更新する', a
       '<SingleSelectGroup v-model="selected" :options="options" label="表示対象" />',
   })
   const wrapper = mount(host)
-  wrappers.push(wrapper)
   const group = wrapper.getComponent(SingleSelectGroup)
   await wrapper.get('input[value="third"]').setValue()
   expect(group.emitted('update:modelValue')).toEqual([['third']])
@@ -86,8 +82,9 @@ test('複数のグループはradioの名前を共有しない', () => {
         '<div><SingleSelectGroup model-value="first" :options="options" label="一組目" /><SingleSelectGroup model-value="second" :options="options" label="二組目" /></div>',
     }),
   )
-  wrappers.push(wrapper)
-  const [first, second] = wrapper.findAllComponents(SingleSelectGroup)
+  const groups = wrapper.findAllComponents(SingleSelectGroup)
+  const [first, second] = groups
+  if (!first || !second) throw new Error('2つのグループが必要')
   const firstNames = first
     .findAll('input')
     .map((radio) => radio.attributes('name'))

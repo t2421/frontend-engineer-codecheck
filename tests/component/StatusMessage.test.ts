@@ -1,17 +1,13 @@
-import { afterEach, expect, test, vi } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { h } from 'vue'
 import StatusMessage from '../../src/components/shared/StatusMessage.vue'
 import Button from '../../src/components/shared/Button.vue'
 
-const wrappers: ReturnType<typeof mount>[] = []
-afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()))
-
 test('compact表示でもloading通知をbusy領域の外へ保つ', () => {
   const wrapper = mount(StatusMessage, {
     props: { state: 'loading', title: '読み込み中', compact: true },
   })
-  wrappers.push(wrapper)
   expect(wrapper.get('.status-message').classes()).toContain(
     'status-message-compact',
   )
@@ -47,7 +43,6 @@ test.each([
     const wrapper = mount(StatusMessage, {
       props: { state, title, description },
     })
-    wrappers.push(wrapper)
     const message = wrapper.get(`[role="${role}"]`)
     expect(message.text()).toBe(title + description)
     expect(message.attributes('aria-live')).toBe(
@@ -69,7 +64,6 @@ test('同じ部品の状態と文言を更新でき、読み込み終了を反�
   const wrapper = mount(StatusMessage, {
     props: { state: 'empty', title: '未選択' },
   })
-  wrappers.push(wrapper)
   expect(wrapper.find('p').exists()).toBe(false)
   expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   await wrapper.setProps({
@@ -99,7 +93,6 @@ test('任意の操作はslotで提供し呼び出し元の再試行を通知す�
       action: () => h(Button, { label: '再読み込み', onClick: retry }),
     },
   })
-  wrappers.push(wrapper)
   expect(wrapper.get('h2').text()).toBe('取得失敗')
   expect(wrapper.get('[role="alert"]').find('button').exists()).toBe(false)
   await wrapper.get('button').trigger('click')

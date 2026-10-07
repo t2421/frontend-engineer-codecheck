@@ -1,9 +1,8 @@
-import { afterEach, expect, test, vi } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import PopulationPage from '../../src/pages/PopulationPage.vue'
 import PopulationDataPanel from '../../src/components/population/PopulationDataPanel.vue'
 import { populationResponse } from '../fixtures/population'
-afterEach(() => vi.unstubAllGlobals())
 test('県選択をmainの人口区分UIへ渡し、区分変更・全解除でも選択と区分が整合する', async () => {
   const fetch = vi
     .fn()
@@ -15,33 +14,29 @@ test('県選択をmainの人口区分UIへ渡し、区分変更・全解除で�
     // Canvas rendering is covered by PopulationChart tests and browser E2E.
     global: { stubs: { PopulationChart: true } },
   })
-  try {
-    await flushPromises()
-    await wrapper.get('input[type="checkbox"]').setValue(true)
-    await flushPromises()
-    expect(
-      wrapper.getComponent(PopulationDataPanel).props('selectedPrefectures'),
-    ).toEqual(prefectures)
-    await wrapper.get('input[value="young"]').setValue()
-    expect(wrapper.get('input[type="checkbox"]').element).toHaveProperty(
-      'checked',
-      true,
-    )
-    expect(fetch).toHaveBeenCalledTimes(1)
-    await wrapper.get('.desktop-clear').trigger('click')
-    expect(wrapper.get('input[value="young"]').element).toHaveProperty(
-      'checked',
-      true,
-    )
-    expect(wrapper.text()).toContain(
-      '都道府県を選択すると、人口の推移を確認できます',
-    )
-    expect(
-      wrapper.getComponent(PopulationDataPanel).props('selectedPrefectures'),
-    ).toEqual([])
-  } finally {
-    wrapper.unmount()
-  }
+  await flushPromises()
+  await wrapper.get('input[type="checkbox"]').setValue(true)
+  await flushPromises()
+  expect(
+    wrapper.getComponent(PopulationDataPanel).props('selectedPrefectures'),
+  ).toEqual(prefectures)
+  await wrapper.get('input[value="young"]').setValue()
+  expect(wrapper.get('input[type="checkbox"]').element).toHaveProperty(
+    'checked',
+    true,
+  )
+  expect(fetch).toHaveBeenCalledTimes(1)
+  await wrapper.get('.desktop-clear').trigger('click')
+  expect(wrapper.get('input[value="young"]').element).toHaveProperty(
+    'checked',
+    true,
+  )
+  expect(wrapper.text()).toContain(
+    '都道府県を選択すると、人口の推移を確認できます',
+  )
+  expect(
+    wrapper.getComponent(PopulationDataPanel).props('selectedPrefectures'),
+  ).toEqual([])
 })
 
 test('全体確認用loaderを既存人口パネルへ渡し、選択した県だけ取得する', async () => {
@@ -58,15 +53,11 @@ test('全体確認用loaderを既存人口パネルへ渡し、選択した県�
     },
     global: { stubs: { PopulationChart: true } },
   })
-  try {
-    await flushPromises()
-    expect(populationLoader).not.toHaveBeenCalled()
-    await wrapper.get('input[type="checkbox"]').setValue(true)
-    await flushPromises()
-    expect(populationLoader).toHaveBeenCalledExactlyOnceWith(13)
-    await wrapper.get('input[value="elder"]').setValue()
-    expect(populationLoader).toHaveBeenCalledTimes(1)
-  } finally {
-    wrapper.unmount()
-  }
+  await flushPromises()
+  expect(populationLoader).not.toHaveBeenCalled()
+  await wrapper.get('input[type="checkbox"]').setValue(true)
+  await flushPromises()
+  expect(populationLoader).toHaveBeenCalledExactlyOnceWith(13)
+  await wrapper.get('input[value="elder"]').setValue()
+  expect(populationLoader).toHaveBeenCalledTimes(1)
 })

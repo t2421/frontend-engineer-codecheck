@@ -18,26 +18,27 @@ const props = defineProps<{
   status?: 'loading' | 'error' | 'ready'
 }>()
 const emit = defineEmits<{ 'update:modelValue': [codes: number[]] }>()
+// jsdomにはmatchMediaが無いため、未定義でもReferenceErrorにならないようglobalThis経由で参照する。
 const viewport = globalThis.matchMedia?.('(width < 640px)')
 const isMobile = ref(viewport?.matches ?? false)
 const mobileExpanded = ref(false)
 const expanded = computed(() => !isMobile.value || mobileExpanded.value)
-const selector = useTemplateRef<globalThis.HTMLElement>('selector')
-async function updateViewport(event: globalThis.MediaQueryListEvent) {
-  const focused = globalThis.document.activeElement
+const selector = useTemplateRef<HTMLElement>('selector')
+async function updateViewport(event: MediaQueryListEvent) {
+  const focused = document.activeElement
   const ownsFocus = selector.value?.contains(focused)
   isMobile.value = event.matches
   await nextTick()
   // Move focus only when this resize hides the currently focused operation.
   if (
     ownsFocus &&
-    focused instanceof globalThis.HTMLElement &&
+    focused instanceof HTMLElement &&
     !focused.getClientRects().length
   ) {
-    const active = globalThis.document.activeElement
-    if (active !== focused && active !== globalThis.document.body) return
+    const active = document.activeElement
+    if (active !== focused && active !== document.body) return
     selector.value
-      ?.querySelector<globalThis.HTMLElement>(
+      ?.querySelector<HTMLElement>(
         isMobile.value ? '.toggle-list' : 'input[type="checkbox"]',
       )
       ?.focus()
