@@ -5,18 +5,31 @@ import { captureScreenshot } from './screenshot'
 import { expectNoHorizontalOverflow } from './layout'
 
 const floatingButton = (page: Page) =>
-  page.getByRole('button', { name: /^都道府県を選ぶ · \d+ 選択中$/ })
+  page.getByRole('button', { name: /^都道府県を選択 · \d+ 選択中$/ })
 const sheet = (page: Page) =>
   page.getByRole('dialog', { name: '都道府県を選択', exact: true })
 
 async function selectAndScroll(page: Page) {
-  await page
-    .getByRole('button', { name: '都道府県を選ぶ', exact: true })
-    .click()
+  await floatingButton(page).click()
   for (const name of ['北海道', '東京都', '大阪府'])
-    await page.getByRole('checkbox', { name, exact: true }).check()
+    await sheet(page).getByRole('checkbox', { name, exact: true }).check()
+  await sheet(page)
+    .getByRole('button', { name: '3 都道府県をグラフに反映', exact: true })
+    .click()
   await expect(page.locator('canvas')).toHaveAttribute('aria-label', /大阪府/)
   await page.mouse.wheel(0, 3000)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.scrollY ===
+          Math.max(
+            0,
+            document.documentElement.scrollHeight - window.innerHeight,
+          ),
+      ),
+    )
+    .toBe(true)
   await expect(floatingButton(page)).toBeVisible()
 }
 
@@ -39,7 +52,7 @@ test.describe('スマホの都道府県選択シート（APIモック）', () =>
   test('グラフ位置で仮選択し、反映時だけ確定して同じ位置で比較できる', async ({
     page,
   }, testInfo) => {
-    await expect(floatingButton(page)).toBeHidden()
+    await expect(floatingButton(page)).toBeVisible()
     await selectAndScroll(page)
     const scrollY = await page.evaluate(() => window.scrollY)
     await captureScreenshot(page, testInfo, 'mobile-graph.png')
@@ -60,7 +73,7 @@ test.describe('スマホの都道府県選択シート（APIモック）', () =>
       'aria-label',
       /北海道/,
     )
-    await expect(floatingButton(page)).toHaveText('都道府県を選ぶ · 2 選択中')
+    await expect(floatingButton(page)).toHaveText('都道府県を選択 · 2 選択中')
     await expect(floatingButton(page)).toBeFocused()
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollY)
     await captureScreenshot(page, testInfo, 'mobile-graph-applied.png')
@@ -73,6 +86,8 @@ test.describe('スマホの都道府県選択シート（APIモック）', () =>
       .getByRole('button', { name: '閉じる', exact: true })
       .click()
     await page.mouse.wheel(0, -3000)
+    await expect(floatingButton(page)).toBeVisible()
+    await page.setViewportSize({ width: 640, height: 844 })
     await expect(floatingButton(page)).toBeHidden()
     await expect(
       page.getByRole('checkbox', { name: '北海道', exact: true }),
@@ -99,7 +114,7 @@ test.describe('スマホの都道府県選択シート（APIモック）', () =>
       else await page.keyboard.press('Escape')
       await expect(sheet(page)).toBeHidden()
       await expect(floatingButton(page)).toBeFocused()
-      await expect(floatingButton(page)).toHaveText('都道府県を選ぶ · 3 選択中')
+      await expect(floatingButton(page)).toHaveText('都道府県を選択 · 3 選択中')
       await floatingButton(page).click()
       await expect(
         sheet(page).getByRole('checkbox', { name: '東京都', exact: true }),
@@ -234,7 +249,6 @@ test.describe('スマホの都道府県選択シート（APIモック）', () =>
       return route.fulfill({ json: prefectureResponse })
     })
     await page.reload()
-    await page.mouse.wheel(0, 3000)
     await expect(floatingButton(page)).toBeVisible()
     await floatingButton(page).click()
     await expect(sheet(page).getByRole('status')).toContainText(
@@ -309,7 +323,7 @@ test.describe('スマホの都道府県選択シート（APIモック）', () =>
     await expect(page.getByRole('alert')).toContainText(
       'データを取得できませんでした',
     )
-    await expect(floatingButton(page)).toHaveText('都道府県を選ぶ · 4 選択中')
+    await expect(floatingButton(page)).toHaveText('都道府県を選択 · 4 選択中')
     await checkAccessibility(page, testInfo)
     await page.getByRole('button', { name: '再読み込み', exact: true }).click()
     await expect(page.locator('canvas')).toHaveAttribute('aria-label', /沖縄県/)

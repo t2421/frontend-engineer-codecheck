@@ -399,8 +399,14 @@ test('449/450/767/768pxの境界で年ラベルを切り替え、実APIと同じ
     return route.fulfill({ json: response })
   })
   await page.goto('/')
-  await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
-  await page.getByRole('checkbox', { name: '北海道', exact: true }).check()
+  await page
+    .getByRole('button', { name: '都道府県を選択 · 0 選択中', exact: true })
+    .click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('checkbox', { name: '北海道', exact: true }).check()
+  await dialog
+    .getByRole('button', { name: '1 都道府県をグラフに反映', exact: true })
+    .click()
   await expect(page.locator('canvas')).toBeVisible()
   for (const width of [320, 449, 450, 600, 767, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1100 })

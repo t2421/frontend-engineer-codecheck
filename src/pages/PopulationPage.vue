@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, useTemplateRef } from 'vue'
+import { ref } from 'vue'
 import PageTitle from '../components/shared/PageTitle.vue'
 import PrefectureSelectionPanel from '../components/prefectures/PrefectureSelectionPanel.vue'
 import PopulationDataPanel from '../components/population/PopulationDataPanel.vue'
@@ -8,7 +8,7 @@ import type { PopulationLoader } from '../components/population/usePopulationDat
 import type { Prefecture } from '../components/prefectures/prefectureApi'
 import type { PopulationCategory } from '../components/population/populationApi'
 import populationMark from '../assets/population-mark.svg'
-import { useFloatingSelection } from '../components/prefectures/useFloatingSelection'
+import { useMobileViewport } from '../components/prefectures/useMobileViewport'
 defineProps<{
   prefectureLoader?: PrefectureLoader
   populationLoader?: PopulationLoader
@@ -16,13 +16,7 @@ defineProps<{
 const selectedPrefectures = ref<Prefecture[]>([])
 const category = ref<PopulationCategory>('total')
 const controlHeight = ref<number>()
-const selector = useTemplateRef<HTMLElement>('selector')
-const population = useTemplateRef<HTMLElement>('population')
-const {
-  visible: floating,
-  isMobile,
-  scrollSpace,
-} = useFloatingSelection(selector, population)
+const isMobile = useMobileViewport()
 </script>
 
 <template>
@@ -46,7 +40,6 @@ const {
     class="main-content"
     tabindex="-1"
     :style="{
-      '--graph-scroll-space': `${scrollSpace}px`,
       '--floating-control-height': controlHeight
         ? `${controlHeight}px`
         : undefined,
@@ -58,25 +51,19 @@ const {
     />
 
     <section
-      ref="selector"
       class="content-area prefectures"
       aria-labelledby="prefectures-title"
     >
       <PrefectureSelectionPanel
         v-model="selectedPrefectures"
         :loader="prefectureLoader"
-        :floating="floating"
         :is-mobile="isMobile"
         heading-id="prefectures-title"
         @control-height="controlHeight = $event"
       />
     </section>
 
-    <section
-      ref="population"
-      class="content-area population"
-      aria-labelledby="population-title"
-    >
+    <section class="content-area population" aria-labelledby="population-title">
       <div class="population-heading">
         <h2 id="population-title" class="section-title">人口推移</h2>
         <p class="population-description">選択した都道府県を同じ区分で比較</p>
@@ -206,13 +193,11 @@ const {
       52px + var(--space-24) + env(safe-area-inset-bottom)
     );
 
-    /* 短いグラフも選択欄を画面外へ送れ、文字拡大時も軸を固定操作と重ねない余白。 */
-    padding-block-end: calc(
-      max(
-        var(--graph-scroll-space) - var(--space-20),
-        var(--floating-control-height) + var(--space-16)
-      )
-    );
+    padding-block-end: calc(var(--floating-control-height) + var(--space-16));
+  }
+
+  .prefectures {
+    display: none;
   }
 
   .header-description {

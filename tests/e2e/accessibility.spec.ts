@@ -89,15 +89,23 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(
         '都道府県別の人口推移',
       )
-      await expect(
-        page.getByRole('region', { name: '都道府県', exact: true }),
-      ).toBeVisible()
+      const inline = page.getByRole('region', { name: '都道府県', exact: true })
+      if (width >= 640) await expect(inline).toBeVisible()
+      else await expect(inline).toBeHidden()
       await expect(
         page.getByRole('region', { name: '人口推移', exact: true }),
       ).toBeVisible()
-      await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
-        '0 / 1 選択中',
-      )
+      if (width >= 640)
+        await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
+          '0 / 1 選択中',
+        )
+      else
+        await expect(
+          page.getByRole('button', {
+            name: '都道府県を選択 · 0 選択中',
+            exact: true,
+          }),
+        ).toBeVisible()
       const prefecture = page.getByRole('checkbox', { name: '検査用東京都' })
       if (width >= 640) await expect(prefecture).toBeVisible()
       else await expect(prefecture).toHaveCount(0)

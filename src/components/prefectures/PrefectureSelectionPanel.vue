@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   computed,
+  nextTick,
   onMounted,
   onScopeDispose,
   ref,
@@ -14,13 +15,15 @@ import PrefectureSelector from './PrefectureSelector.vue'
 import PrefectureSelectionSheet from './PrefectureSelectionSheet.vue'
 import { prefectureFailure, type Prefecture } from './prefectureApi'
 import { usePrefectures, type PrefectureLoader } from './usePrefectures'
-const props = defineProps<{
-  headingId?: string
-  modelValue: readonly Prefecture[]
-  loader?: PrefectureLoader
-  floating?: boolean
-  isMobile?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    headingId?: string
+    modelValue: readonly Prefecture[]
+    loader?: PrefectureLoader
+    isMobile?: boolean
+  }>(),
+  { headingId: undefined, loader: undefined, isMobile: undefined },
+)
 const emit = defineEmits<{
   'update:modelValue': [prefectures: Prefecture[]]
   'control-height': [height: number]
@@ -31,7 +34,12 @@ const sheetOpen = ref(false)
 const inline = useTemplateRef<HTMLElement>('inline')
 const control = useTemplateRef<HTMLElement>('control')
 let observer: ResizeObserver | undefined
+let lastFocused: EventTarget | null = null
+function rememberFocus(event: FocusEvent) {
+  lastFocused = event.target
+}
 onMounted(() => {
+  document.addEventListener('focusin', rememberFocus)
   if (typeof ResizeObserver === 'undefined' || !control.value) return
   observer = new ResizeObserver(() => {
     const height = control.value?.getBoundingClientRect().height
@@ -39,20 +47,41 @@ onMounted(() => {
   })
   observer.observe(control.value)
 })
-onScopeDispose(() => observer?.disconnect())
+onScopeDispose(() => {
+  observer?.disconnect()
+  document.removeEventListener('focusin', rememberFocus)
+})
 watch(
   () => props.isMobile,
-  (value) => {
+  async (value) => {
+    const focused =
+      document.activeElement === document.body
+        ? lastFocused
+        : document.activeElement
+    const fromInline =
+      focused instanceof Node && inline.value?.contains(focused)
+    const fromControl =
+      focused instanceof Node && control.value?.contains(focused)
     if (value === false && sheetOpen.value) {
       sheetOpen.value = false
+      return
     }
+    await nextTick()
+    if (value && fromInline)
+      control.value?.querySelector('button')?.focus({ preventScroll: true })
+    else if (value === false && fromControl) focusInline()
   },
 )
-function focusInline() {
+async function focusInline() {
+  await nextTick()
   if (props.isMobile === false) {
     const target =
       inline.value?.querySelector<HTMLElement>('input[type="checkbox"]') ??
-      inline.value?.querySelector<HTMLElement>('button:not(:disabled)')
+      Array.from(
+        inline.value?.querySelectorAll<HTMLElement>('button:not(:disabled)') ??
+          [],
+      ).find((button) => button.getClientRects().length) ??
+      inline.value
     target?.focus()
   }
 }
@@ -69,12 +98,18 @@ function update(codes: number[]) {
 }
 </script>
 <template>
-  <div ref="inline">
+  <div
+    ref="inline"
+    tabindex="-1"
+    class="inline-control"
+    :class="{ 'is-hidden': isMobile }"
+  >
     <PrefectureSelector
       :heading-id="headingId"
       :prefectures="prefectures"
       :model-value="codes"
       :status="status"
+      :mobile="isMobile"
       @update:model-value="update"
     >
       <template v-if="status !== 'ready'" #list>
@@ -100,20 +135,21 @@ function update(codes: number[]) {
       </template>
     </PrefectureSelector>
   </div>
-  <div
-    ref="control"
-    class="floating-control"
-    :class="{ 'is-hidden': !floating && !sheetOpen }"
-    :inert="!floating && !sheetOpen"
-    :aria-hidden="!floating && !sheetOpen"
-  >
-    <Button
-      :label="`都道府県を選ぶ · ${codes.length} 選択中`"
-      aria-haspopup="dialog"
-      :aria-expanded="sheetOpen"
-      @click="openSheet"
-    />
-  </div>
+  <Teleport to="body"
+    ><div
+      ref="control"
+      class="floating-control"
+      :class="{ 'is-hidden': !isMobile }"
+      :inert="!isMobile"
+      :aria-hidden="!isMobile"
+    >
+      <Button
+        :label="`都道府県を選択 · ${codes.length} 選択中`"
+        aria-haspopup="dialog"
+        :aria-expanded="sheetOpen"
+        @click="openSheet"
+      /></div
+  ></Teleport>
   <PrefectureSelectionSheet
     v-model="sheetOpen"
     :prefectures="prefectures"
@@ -125,6 +161,10 @@ function update(codes: number[]) {
   />
 </template>
 <style scoped>
+.inline-control.is-hidden {
+  display: none;
+}
+
 .floating-control {
   position: fixed;
   z-index: 2;

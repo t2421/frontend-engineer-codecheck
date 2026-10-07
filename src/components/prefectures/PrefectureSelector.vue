@@ -11,23 +11,32 @@ import {
 import Checkbox from '../shared/Checkbox.vue'
 import Button from '../shared/Button.vue'
 import type { Prefecture } from './prefectureApi'
-const props = defineProps<{
-  prefectures: readonly Prefecture[]
-  headingId?: string
-  modelValue: readonly number[]
-  status?: 'loading' | 'error' | 'ready'
-}>()
+const props = withDefaults(
+  defineProps<{
+    prefectures: readonly Prefecture[]
+    headingId?: string
+    modelValue: readonly number[]
+    status?: 'loading' | 'error' | 'ready'
+    mobile?: boolean
+  }>(),
+  { headingId: undefined, status: undefined, mobile: undefined },
+)
 const emit = defineEmits<{ 'update:modelValue': [codes: number[]] }>()
 // jsdomにはmatchMediaが無いため、未定義でもReferenceErrorにならないようglobalThis経由で参照する。
 const viewport = globalThis.matchMedia?.('(width < 640px)')
-const isMobile = ref(viewport?.matches ?? false)
+const mediaMobile = ref(viewport?.matches ?? false)
+const isMobile = computed(() => props.mobile ?? mediaMobile.value)
 const mobileExpanded = ref(false)
 const expanded = computed(() => !isMobile.value || mobileExpanded.value)
 const selector = useTemplateRef<HTMLElement>('selector')
 async function updateViewport(event: MediaQueryListEvent) {
+  if (props.mobile !== undefined) {
+    mediaMobile.value = event.matches
+    return
+  }
   const focused = document.activeElement
   const ownsFocus = selector.value?.contains(focused)
-  isMobile.value = event.matches
+  mediaMobile.value = event.matches
   await nextTick()
   // Move focus only when this resize hides the currently focused operation.
   if (

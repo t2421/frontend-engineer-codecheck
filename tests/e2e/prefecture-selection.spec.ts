@@ -180,13 +180,16 @@ test('スマホ: closed中も取得し、開くとskeleton、失敗と再試行�
     )
   })
   await page.goto('/')
-  const open = page.getByRole('button', { name: '都道府県を選ぶ', exact: true })
+  const open = page.getByRole('button', {
+    name: '都道府県を選択 · 0 選択中',
+    exact: true,
+  })
   const close = page.getByRole('button', { name: '閉じる', exact: true })
   await expect(open).toHaveAttribute('aria-expanded', 'false')
   await expect.poll(() => attempts).toBe(1)
-  await expect(page.locator('.checkbox-skeleton').first()).not.toBeVisible()
+  await expect(page.locator('.checkbox-skeleton').last()).not.toBeVisible()
   await open.click()
-  await expect(page.locator('.checkbox-skeleton').first()).toBeVisible()
+  await expect(page.locator('.checkbox-skeleton').last()).toBeVisible()
   await page.screenshot({
     path: 'test-results/mobile-prefectures-loading.png',
     fullPage: true,
@@ -199,7 +202,7 @@ test('スマホ: closed中も取得し、開くとskeleton、失敗と再試行�
   )
   await page.getByRole('button', { name: '再読み込み' }).click()
   await expect.poll(() => attempts).toBe(2)
-  await expect(page.locator('.checkbox-skeleton').first()).toBeVisible()
+  await expect(page.locator('.checkbox-skeleton').last()).toBeVisible()
   await close.click()
   release()
   await expect(page.locator('input[type=checkbox]')).toHaveCount(2)
@@ -207,6 +210,8 @@ test('スマホ: closed中も取得し、開くとskeleton、失敗と再試行�
   await expect(page.getByRole('checkbox')).toHaveCount(0)
   await open.click()
   await expect(page.getByRole('checkbox')).toHaveCount(2)
-  await expect(page.locator('.checkbox-skeleton')).toHaveCount(0)
+  await expect(
+    page.getByRole('dialog').locator('.checkbox-skeleton'),
+  ).toHaveCount(0)
   expect(attempts).toBe(2)
 })

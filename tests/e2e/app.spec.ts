@@ -16,6 +16,18 @@ for (const width of [1440, 768, 390, 320]) {
       name: '人口推移',
       exact: true,
     })
+    if (width < 640) {
+      await expect(prefectures).toBeHidden()
+      await expect(population).toBeVisible()
+      await expect(
+        page.getByRole('button', {
+          name: '都道府県を選択 · 0 選択中',
+          exact: true,
+        }),
+      ).toBeVisible()
+      await expectNoHorizontalOverflow(page)
+      return
+    }
     await expect(prefectures).toBeVisible()
     await expect(population).toBeVisible()
     const first = await prefectures.boundingBox()
