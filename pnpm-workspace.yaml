@@ -7,6 +7,17 @@ minimumReleaseAgeExclude:
   - source-map-js@1.2.2
 # GHSA-wq5f-xc86-pv6w: Miniflareの通常更新が修正版を指定したら削除する。
 overrides:
+  # LHCI transitives: fixed tmp path traversal and basic-ftp ReDoS.
+  tmp: '0.2.7'
+  basic-ftp: '6.2.1'
+  # Keep LHCI/Lighthouse; browser helper v3 drops extract-zip. Node 24 supports ESM.
+  'puppeteer-core@24.43.1>@puppeteer/browsers': '3.2.3'
+  # LHCI uses uuid.v4; v11 preserves CommonJS and fixes the buffer-bound advisory.
+  '@lhci/cli>uuid': '11.1.1'
+  # Shared ProxyAgent API; satisfy browser helper v3's optional peer.
+  '@lhci/cli>proxy-agent': '8.0.1'
+  # argparse v2 retains v1 aliases and removes the vulnerable sprintf-js dependency.
+  'js-yaml@3.15.2>argparse': '2.0.1'
   'miniflare@5.20260926.1-alpha>sharp': '0.35.5'
 # braces High: Stylelint維持をユーザー承認。固定lintパターンに限定しリスクを受容。
 # 管理責任者: repo管理者 t2421。見直し: 2026-10-14（修正版・依存経路を再確認）。

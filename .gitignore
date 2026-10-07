@@ -10,3 +10,6 @@ test-results/
 .env*
 dist-review/
 review-assets/
+
+.lighthouseci/
+performance-results/

@@ -29,9 +29,7 @@ PC/tabletの目盛りと縦軸は選択値に応じた Chart.js の自動計算�
 
 Canvas は role=img と現在区分・県名のラベル、軸と代替表の説明を持ちます。画面側の県名凡例と線種・マーカーを併用。ネイティブ details/summary から、各県の全ての年・人口数を表で確認でき、マウス hover に依存しません。47県でも表を県別に分け、横に47列を並べません。更新時の追加 live 通知・focus 移動は行いません。
 
-PR #50 は確認時 draft で main 未マージです。その `docs/ACCESSIBILITY.md` と同じ axe 4.13.0 / WCAG 2A・2AA・2.1A・2.1AA・2.2AA タグ、除外なしでローカル検査しました。PR #50 の worktree のインストール済み axe を読み取り利用し、今回の依存は増やしていません。
-
-4幅（1440/768/390/320）×5状態（未選択・3県選択・老年人口・表展開・全解除）の20検査で violations=0、incomplete=0。[集計](./screenshots/issue-26/accessibility-summary.json)。完全な検査JSONはローカル `test-results/issue26-a11y-*.json` に保存します。これは PR #50 の CI への統合結果ではありません。マージ後の共通検査へのケース追加は接続時に確認してください。
+PR #50 を含む最新mainを取り込み、`tests/e2e/accessibility.spec.ts`と共通`checkAccessibility`で4幅（1440/768/390/320）×5状態（未選択・3県選択・老年人口・表展開・全解除）を継続検査します。axe 4.13.0 / WCAG 2A・2AA・2.1A・2.1AA・2.2AA、除外なし。判定前に全結果のJSONを保存し、CIのHTMLレポートへ添付します。初回のローカル20検査も violations=0、incomplete=0。[初回集計](./screenshots/issue-26/accessibility-summary.json)。
 
 キーボードによる区分切替、県選択維持、summary の focus/Enter で表を開くこと、人口値の可視性、4幅の横溢れなしを Chrome で確認しました。スクリーンリーダーによる読み上げの自然さと、利用者による色・線・表の理解の手動確認は残ります。
 
@@ -56,7 +54,7 @@ Mac / Node 24.16.0 / native pnpm 12.8.1 / installed Google Chrome。TDD で描�
 
 `pnpm dev` の URL で `/tests/e2e/fixtures/population-chart.html` を開きます。初期は未選択。東京都・大阪府・北海道にチェックし、4区分・個別解除・全解除・47県・グラフ領域表示切替を操作できます。データは合成で、実APIや秘密値を使用しません。review build が既存公開規約の `tests/e2e/fixtures/*.html` として列挙することも確認しました。
 
-review build の既存生成先 `dist-review` は `.gitignore` に含まれますが、既存 ESLint/Prettier の除外には含まれません。生成済み出力があると `pnpm check` が生成JSを検査するため、今回の最終 check 前に出力を `/tmp/issue26-review-build-final-20261007` へ移しました。検査規則は緩和していません。
+最新mainのreview build・性能計測と生成物の除外設定を維持しています。性能計測は同じheadのSHA付きアプリURLで自動実行され、fixtureの手動検証とは別にPRへ結果を記録します。
 
 実APIデータでの画面統合は #24 接続後に確認します。この描画専用部品の値・操作は合成 fixture で検証済み。PR・Previewの最新状態はPR本文の検証結果を参照してください。
 

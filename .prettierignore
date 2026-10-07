@@ -10,3 +10,7 @@ docs/DESIGN.md
 docs/DESIGN_LINKS.md
 docs/PRD.md
 .wrangler/
+
+.lighthouseci/
+performance-results/
+dist-review/
