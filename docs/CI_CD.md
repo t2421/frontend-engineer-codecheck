@@ -13,7 +13,7 @@ PRの導入・build/testへ公開Secretsを渡しません。監査の未承認�
 
 ## PR Preview
 
-Previewは静的UI専用です。Worker/API・Secrets・本番binding・部品fixtureを含めず、URLを知る人が閲覧できます。公開jobは信頼するmainコードで成果物をデータとして扱い、PRコードをcheckout・実行しません。fork PR・古いhead・closed PRは公開対象外です。
+PreviewはPRの静的UIと、信頼するmain由来の[API転送Worker](../worker/review.ts)を公開します。転送先は公開済み本番の2つのGET APIに限定し、PreviewにはSecrets・本番binding・部品fixtureを含めません。ブラウザの認証情報やIPヘッダーは転送せず、本番APIの利用量・IP制限を使用します（本番から見えるIPによって複数Previewの枠が共有される場合があります）。PRのバックエンド変更は検証対象外です。URLを知る人が閲覧できます。公開jobは信頼するmainコードで成果物をデータとして扱い、PRコードをcheckout・実行しません。fork PR・古いhead・closed PRは公開対象外です。
 
 対象SHAのHTMLへの到達を確認し、一時的な通信失敗・一部HTTPエラーは同じURLで再試行します。期限内に200 HTMLを確認できなければ失敗とし、別SHAへfallbackしません。[readinessの実装](../.github/scripts/preview-readiness.mjs)が詳細の正本です。
 
