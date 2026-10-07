@@ -4,10 +4,9 @@
 
 ## 開発の入口
 
-Node **24.16.0**、pnpm **12.8.1**、Google Chromeを用意します。[依存管理](./docs/DEPENDENCY_SECURITY.md)を確認して実行してください。
+Node.js **24.16.0**とpnpm **12.8.1**、Google Chromeを用意し、プロジェクトのフォルダで実行します。
 
 ```sh
-nvm use
 pnpm install --frozen-lockfile
 pnpm dev
 ```

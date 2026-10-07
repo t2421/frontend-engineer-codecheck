@@ -65,7 +65,7 @@ test('independent medians; incomplete, runtime errors, invalid metrics and wrong
     assert.throws(() => summarize(invalid, url))
   }
 })
-test('only current open same-repo head updates; comment preserves dedicated identity and limitations', () => {
+test('only current open same-repo head updates; comment preserves dedicated identity and SHA', () => {
   const sha = 'a'.repeat(40)
   const pr = { state: 'open', head: { sha, repo: { full_name: 'owner/repo' } } }
   assert.equal(canUpdate(pr, sha, 'owner/repo'), true)
@@ -78,7 +78,8 @@ test('only current open same-repo head updates; comment preserves dedicated iden
   )
   assert.match(comment, /<!-- pr-preview-performance -->/)
   assert.match(comment, /未計測/)
-  assert.match(comment, /INP/)
+  assert.ok(comment.includes(sha))
+  assert.match(comment, /PREVIEW_PERFORMANCE.md/)
   assert.doesNotMatch(comment, /cloudflare-pr-preview/)
 })
 
@@ -322,12 +323,10 @@ test('profile reference rating uses the worst metric; missing or failed data can
   }
 })
 
-test('summary and rows preserve a one-sided failure, evidence and next checks', () => {
+test('concise summary preserves values, icon labels and a one-sided failure', () => {
   const comment = renderComment(
     {
       sha: 'a'.repeat(40),
-      url,
-      measuredAt: 'now',
       profiles: {
         desktop: measured(),
         mobile: { status: 'unmeasured', reason: 'collection-failed' },
@@ -335,17 +334,30 @@ test('summary and rows preserve a one-sided failure, evidence and next checks', 
     },
     'https://github.com/owner/repo/actions/runs/1',
   )
-  assert.match(comment, /結果サマリー: PC 良好／モバイル 判定不可/)
-  assert.match(comment, /\| モバイル \| 判定不可 \| 未計測（判定不可）/)
-  assert.match(comment, /計測エラー・不完全レポート/)
-  assert.match(comment, /次に確認:.*再計測/)
-  assert.match(comment, /実ユーザーの合否やアプリ全体の品質保証/)
-  assert.match(comment, /TBTはCore Web VitalでもINP実測値でもありません/)
-  assert.match(comment, /mergeブロックはありません/)
+  assert.ok(
+    comment.includes(
+      '| PC | 🟢 良好 | 1.00 s（🟢 良好） | 0.000（🟢 良好） | 0 ms（🟢 良好） | 3/3 |',
+    ),
+  )
+  assert.ok(
+    comment.includes(
+      '| モバイル | ⚪ 判定不可 | — | — | — | 未計測（収集失敗） |',
+    ),
+  )
+  assert.doesNotMatch(
+    comment,
+    /根拠|次に確認|INP|LCP要素|RTT|run 1|artifact|mergeブロック/,
+  )
+  assert.equal(comment.split('](https:').length - 1, 1)
+  assert.ok(comment.length < 650)
+  assert.ok(
+    comment.includes(
+      '[計測・判定の説明](https://github.com/owner/repo/blob/main/docs/PREVIEW_PERFORMANCE.md)',
+    ),
+  )
   const degraded = renderComment(
     {
       sha: 'a'.repeat(40),
-      url,
       profiles: {
         desktop: measured(5000, 0.3, 400),
         mobile: measured(3000, 0.2, 300),
@@ -353,9 +365,57 @@ test('summary and rows preserve a one-sided failure, evidence and next checks', 
     },
     'https://github.com/owner/repo/actions/runs/1',
   )
-  assert.match(degraded, /結果サマリー: PC 不良／モバイル 改善が必要/)
-  for (const clue of ['LCP要素', 'レイアウト変動', '長時間タスク'])
-    assert.ok(degraded.includes(clue))
+  assert.ok(degraded.includes('| PC | 🔴 不良'))
+  assert.ok(degraded.includes('| モバイル | 🟡 改善が必要'))
+  assert.ok(degraded.includes('5.00 s（🔴 不良）'))
+  assert.ok(degraded.includes('300 ms（🟡 改善が必要）'))
+})
+
+test('missing, incomplete and invalid data show neutral judgment unavailable', () => {
+  for (const data of [
+    undefined,
+    { status: 'unmeasured', reason: 'preview-unavailable' },
+    { status: 'unmeasured', reason: 'collection-failed' },
+    { ...measured(), runs: 2 },
+    { ...measured(), metrics: { lcp: 1000, cls: 0 } },
+    measured(NaN),
+  ]) {
+    const comment = renderComment(
+      { sha: 'a'.repeat(40), profiles: { desktop: data } },
+      'https://github.com/owner/repo/actions/runs/1',
+    )
+    assert.match(comment, /⚪ 判定不可/)
+    assert.match(comment, /未計測/)
+    assert.doesNotMatch(comment, /🟢|🟡|🔴|良好|不良|改善が必要/)
+  }
+})
+
+test('rendered boundary judgments retain raw medians and device-specific TBT', () => {
+  for (const [profile, good, improve] of [
+    ['desktop', 150, 350],
+    ['mobile', 200, 600],
+  ]) {
+    for (const [value, expected] of [
+      [good, '🟢 良好'],
+      [good + 0.000001, '🟡 改善が必要'],
+      [improve, '🟡 改善が必要'],
+      [improve + 0.000001, '🔴 不良'],
+    ]) {
+      const comment = renderComment(
+        {
+          sha: 'a'.repeat(40),
+          profiles: { [profile]: measured(1000, 0, value) },
+        },
+        'https://github.com/owner/repo/actions/runs/1',
+      )
+      const row = comment
+        .split('\n')
+        .find((line) =>
+          line.startsWith(profile === 'desktop' ? '| PC |' : '| モバイル |'),
+        )
+      assert.ok(row.includes(expected), row)
+    }
+  }
 })
 
 test('bounded output allows only metrics and sanitized run metadata; invalid transport fails closed', () => {
@@ -414,9 +474,8 @@ test('bounded output allows only metrics and sanitized run metadata; invalid tra
     parsed,
     'https://github.com/owner/repo/actions/runs/1',
   )
-  assert.match(comment, /Chrome\/123.4 \/ Lighthouse 12.6.1/)
-  assert.match(comment, /2026-10-07T00:00:00.000Z/)
-  assert.match(comment, /artifactに保存せず/)
+  assert.doesNotMatch(comment, /Lighthouse|artifact|touch|command|secret/)
+  assert.match(comment, /🟢 良好/)
   assert.doesNotMatch(comment, /artifacts\//)
 })
 
