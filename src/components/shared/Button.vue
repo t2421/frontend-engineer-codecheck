@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import './control-label.css'
 defineOptions({ name: 'SharedButton' })
 
 const props = withDefaults(
@@ -19,7 +20,7 @@ function handleClick(event: globalThis.MouseEvent) {
 
 <template>
   <button
-    class="button button-primary"
+    class="button button-primary control-label"
     :type="type"
     :disabled="disabled"
     @click="handleClick"
@@ -31,17 +32,11 @@ function handleClick(event: globalThis.MouseEvent) {
 <style scoped>
 .button {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
   min-width: min(136px, 100%);
   max-width: 100%;
   min-height: 44px;
   padding: var(--space-8) var(--space-12);
   border: 0;
-  border-radius: var(--radius-8);
-  font: var(--font-label);
-  text-align: center;
-  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
