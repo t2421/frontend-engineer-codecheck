@@ -4,6 +4,7 @@ pnpm-lock.yaml
 playwright-report/
 test-results/
 .vitest/
+coverage/
 # Reviewed documents belong to separate work.
 docs/ADR.md
 docs/DESIGN.md
