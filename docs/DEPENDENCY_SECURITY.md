@@ -1,17 +1,17 @@
 # 依存管理
 
-Node **24.16.0** / pnpm **12.8.1**を`.nvmrc`・package.jsonで固定します。pnpmは[公式配布](https://github.com/pnpm/pnpm/releases/tag/v12.8.1)を取得し、配布物のchecksumを確認して作業shellのPATHで使います。
+Node.js **24.16.0**とpnpm **12.8.1**を使います。開発を始める手順は[開発・検証](./DEVELOPMENT.md)にまとめています。
 
 ## 導入・更新
 
-`pnpm-workspace.yaml`はinstall scripts停止、公開から7日（10080分）の待機、公開日時欠落時の拒否、直接依存の完全version保存を設定しています。registry・TLSは標準設定です。
+[pnpm-workspace.yaml](../pnpm-workspace.yaml)で、インストール時のスクリプトを止め、新しい版は公開から7日待って使う設定にしています。公開日が分からない版は使わず、依存のバージョンを揃えます。
 
-1. package名・必要性・version・取得元を確認し、`pnpm add <package>@<version>`で追加します。Git・任意URL依存や未確認の`pnpm dlx/create`は外部コードの実行・取得を伴います。
-2. package.json・lockfile・overrideの差分を確認し、再現導入は`pnpm install --frozen-lockfile`を使います。
-3. `pnpm audit`、品質・テスト・build・ライセンスを確認します。CIも全severityを監査します。
-4. scriptsや待機期間の例外が必要なら、対象版・理由・確認内容・承認・解除条件を記録して限定適用します。
+1. パッケージ名・必要性・バージョン・取得元を確認し、`pnpm add <package>@<version>`で追加します。Git・任意URL依存や未確認の`pnpm dlx/create`は外部コードの実行・取得を伴います。
+2. package.jsonとlockfileの変更を確認します。他の環境でも同じ依存を入れるには`pnpm install --frozen-lockfile`を使います。
+3. `pnpm audit`と品質チェック・テスト・buildを実行し、ライセンスも確認します。CIでも脆弱性を確認します。
+4. スクリプトの実行や待機期間の例外が必要なら、対象の版・理由・見直し条件を確認して承認を取ります。
 
-`ignoreScripts`でも明示的なbuild/testやpnpmfile hookはコードを実行します。監査成功は未知の攻撃がない保証ではなく、例外付き成功は脆弱性解消とは区別します。PRの導入・build/testにはdeploy Secretsを渡しません。
+インストール時のスクリプトを止めても、buildやtestではコードが実行されます。PRの検証には公開用Secretsを渡しません。監査から除外した問題は、解消済みとは扱いません。
 
 ## 維持・見直しが必要な設定
 
