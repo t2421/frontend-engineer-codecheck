@@ -1,6 +1,6 @@
 # 共通CSSとデザイントークン
 
-`src/base.css`を`src/main.ts`から読み込み、`:root`のCSSカスタムプロパティをVueのscoped CSSでも参照する。追加依存はない。色・余白・角丸・線幅の名前はFigma変数と対応させ、文字はFigmaのJPスタイルを用途別に定義した。
+`src/styles/base.css`を`src/main.ts`から読み込み、`:root`のCSSカスタムプロパティをVueのscoped CSSでも参照する。追加依存はない。色・余白・角丸・線幅の名前はFigma変数と対応させ、文字はFigmaのJPスタイルを用途別に定義した。
 
 ## 参照元
 

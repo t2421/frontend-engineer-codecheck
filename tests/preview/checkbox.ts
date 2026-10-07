@@ -1,6 +1,6 @@
 import { createApp, defineComponent, h, ref } from 'vue'
 import Checkbox from '../../src/components/shared/Checkbox.vue'
-import '../../src/base.css'
+import '../../src/styles/base.css'
 
 createApp(
   defineComponent({

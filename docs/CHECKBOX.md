@@ -23,7 +23,7 @@ const selected = ref(false)
 
 [共通操作部品](https://www.figma.com/design/I5QdPGt1iIXNqda6KQG1r2?node-id=4-169) のdesign contextとスクリーンショットを確認。高さ44px、最小幅136px、control 20px、選択背景、内側2pxフォーカス枠、無効色を反映。長い任意ラベルでは折返し・高さ拡張を許容する。
 
-PR #33 はマージ済み。初回はマージコミット `05c8718d568203097b9cacddaadb8b7a0f161704` を基点とし、再開時に最新main `2867e3ca76f26af3c0a67704d090052811cdc2b5` へfast-forwardした。既存 `src/base.css` の共通CSSトークンを参照する。フォントの配信方法は既存のDESIGN_TOKENS.mdと同じ未確定事項で、未導入環境ではsans-serifにフォールバックする。
+PR #33 はマージ済み。初回はマージコミット `05c8718d568203097b9cacddaadb8b7a0f161704` を基点とし、再開時に最新main `2867e3ca76f26af3c0a67704d090052811cdc2b5` へfast-forwardした。既存 `src/styles/base.css` の共通CSSトークンを参照する。フォントの配信方法は既存のDESIGN_TOKENS.mdと同じ未確定事項で、未導入環境ではsans-serifにフォールバックする。
 
 FigmaのIcon / Check（4:2 / 4:3）は `src/components/shared/assets/check.svg` に取得した原本を使用。20×20のroot寸法を保持し、装飾としてaria-hiddenのcontrol内に配置する。Figmaの一時URLは実装に含めない。依存追加、共通CSSの変更、App画面への仮の組込みは行っていない。
 
