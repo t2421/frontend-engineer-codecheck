@@ -86,7 +86,13 @@ const fixtureYears =
         ? [1970, 1975, 1980, 1985, 1990]
         : yearMode === 'gap'
           ? [2005, 2010, 2015]
-          : undefined
+          : yearMode === 'single'
+            ? [2024]
+            : yearMode === 'two'
+              ? [1963, 2057]
+              : yearMode === 'irregular'
+                ? [1963, 1964, 1979, 2020, 2057]
+                : undefined
 async function loader(prefCode: number): Promise<PopulationComposition> {
   const values =
     prefCode === 13
@@ -96,8 +102,14 @@ async function loader(prefCode: number): Promise<PopulationComposition> {
         : prefCode === 1
           ? [480, 520, 560, 580, 560, 550, 520]
           : [200, 240, 260, 250, 270, 280, 260].map((v) => v + prefCode)
-  const points = fixtureYears
-    ? fixtureYears.map((year, i) => ({
+  const years =
+    yearMode === 'changing'
+      ? prefCode === 13
+        ? [1963, 1964, 1979, 2020, 2057]
+        : [1951, 1985, 2073]
+      : fixtureYears
+  const points = years
+    ? years.map((year, i) => ({
         year,
         value: values[0]! * 10000 + i * 10000,
       }))
@@ -106,10 +118,12 @@ async function loader(prefCode: number): Promise<PopulationComposition> {
     boundaryYear: 2020,
     categories: {
       total: points,
-      young: points.map((p) => ({
-        year: p.year,
-        value: Math.round(p.value * factors[1]!),
-      })),
+      young: (yearMode === 'changing' ? points.slice(1, -1) : points).map(
+        (p) => ({
+          year: p.year,
+          value: Math.round(p.value * factors[1]!),
+        }),
+      ),
       working: points.map((p) => ({
         year: p.year,
         value: Math.round(p.value * factors[2]!),

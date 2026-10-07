@@ -15,6 +15,7 @@ const props = defineProps<{
   prefectures: readonly Prefecture[]
   headingId?: string
   modelValue: readonly number[]
+  status?: 'loading' | 'error' | 'ready'
 }>()
 const emit = defineEmits<{ 'update:modelValue': [codes: number[]] }>()
 const viewport = globalThis.matchMedia?.('(width < 640px)')
@@ -51,7 +52,12 @@ const summary = computed(
     props.prefectures
       .filter((p) => selected.value.has(p.prefCode))
       .map((p) => p.prefName)
-      .join('、') || '都道府県は未選択です',
+      .join('、') ||
+    (props.status === 'loading'
+      ? '都道府県一覧を読み込んでいます…'
+      : props.status === 'error'
+        ? '都道府県一覧を取得できませんでした'
+        : '都道府県は未選択です'),
 )
 function select(code: number, checked: boolean) {
   const next = new Set(props.modelValue)
@@ -73,7 +79,12 @@ function select(code: number, checked: boolean) {
   >
     <div class="selector-heading">
       <h2 :id="headingId" class="selector-title">都道府県</h2>
-      <p class="selection-count" role="status" aria-label="選択件数">
+      <p
+        v-if="!status || status === 'ready'"
+        class="selection-count"
+        role="status"
+        aria-label="選択件数"
+      >
         {{ modelValue.length }} / {{ prefectures.length }} 選択中
       </p>
       <Button
@@ -87,15 +98,17 @@ function select(code: number, checked: boolean) {
     <p class="selection-summary">{{ summary }}</p>
     <fieldset :id="listId" class="prefecture-list">
       <legend class="visually-hidden">比較する都道府県（複数選択可）</legend>
-      <div class="prefecture-grid">
-        <Checkbox
-          v-for="prefecture in prefectures"
-          :key="prefecture.prefCode"
-          :label="prefecture.prefName"
-          :model-value="selected.has(prefecture.prefCode)"
-          @update:model-value="select(prefecture.prefCode, $event)"
-        />
-      </div>
+      <slot name="list">
+        <div class="prefecture-grid">
+          <Checkbox
+            v-for="prefecture in prefectures"
+            :key="prefecture.prefCode"
+            :label="prefecture.prefName"
+            :model-value="selected.has(prefecture.prefCode)"
+            @update:model-value="select(prefecture.prefCode, $event)"
+          />
+        </div>
+      </slot>
     </fieldset>
     <div class="selector-actions">
       <Button

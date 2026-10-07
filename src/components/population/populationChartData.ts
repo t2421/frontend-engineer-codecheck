@@ -1,11 +1,29 @@
 import type { ChartData, Point } from 'chart.js'
 import type { PopulationSeries } from './populationApi'
 
-export function mobileYearTicks(series: readonly PopulationSeries[]) {
-  const years = series.flatMap((s) => s.data.map((p) => p.year))
-  const min = Math.min(...years)
-  const max = Math.max(...years)
-  return [1960, 1980, 2000, 2020].filter((year) => year >= min && year <= max)
+// Keep both data endpoints; thin labels only, never the plotted points.
+export function yearTicks(
+  series: readonly PopulationSeries[],
+  width: number,
+  labelWidth: number,
+) {
+  const years = [
+    ...new Set(series.flatMap((s) => s.data.map((p) => p.year))),
+  ].sort((a, b) => a - b)
+  if (years.length < 2) return years
+  const first = years[0]!
+  const last = years.at(-1)!
+  const gap = labelWidth + 16
+  const availableWidth = Math.max(0, width - labelWidth)
+  const distance = (a: number, b: number) =>
+    ((b - a) / (last - first)) * availableWidth
+  const ticks = [first]
+  for (const year of years.slice(1, -1)) {
+    if (distance(ticks.at(-1)!, year) >= gap && distance(year, last) >= gap)
+      ticks.push(year)
+  }
+  ticks.push(last)
+  return ticks
 }
 
 // Assign one fixed color token per prefecture, independent of selection order.

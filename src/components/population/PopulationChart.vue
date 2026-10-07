@@ -8,8 +8,8 @@ import {
   LinearScale,
   Tooltip,
   type Point,
-  type LinearScaleOptions,
 } from 'chart.js'
+import { toFont } from 'chart.js/helpers'
 import {
   populationCategories,
   type PopulationCategory,
@@ -18,7 +18,7 @@ import {
 import {
   createPopulationChartData,
   seriesStyle,
-  mobileYearTicks,
+  yearTicks,
   seriesColorTokens,
 } from './populationChartData'
 import StatusMessage from '../shared/StatusMessage.vue'
@@ -67,12 +67,6 @@ function syncChart() {
       maintainAspectRatio: false,
       animation: false,
       onResize(instance, size) {
-        // Use the same viewport breakpoint as the mobile layout, not plot width.
-        const xTicks = instance.options.scales!.x!.ticks as Partial<
-          LinearScaleOptions['ticks']
-        >
-        xTicks.autoSkip = !globalThis.matchMedia('(width < 640px)').matches
-        xTicks.maxTicksLimit = 7
         instance.options.scales!.y!.ticks!.maxTicksLimit =
           size.width < 480 ? 3 : 5
       },
@@ -93,10 +87,21 @@ function syncChart() {
           type: 'linear',
           bounds: 'data',
           afterBuildTicks(scale) {
-            if (globalThis.matchMedia('(width < 640px)').matches)
-              scale.ticks = mobileYearTicks(props.series).map((value) => ({
-                value,
-              }))
+            const ctx = scale.chart.ctx
+            ctx.save()
+            ctx.font = toFont(
+              scale.chart.options.font ?? Chart.defaults.font,
+            ).string
+            const labelWidth = Math.max(
+              0,
+              ...props.series.flatMap((s) =>
+                s.data.map((p) => ctx.measureText(String(p.year)).width),
+              ),
+            )
+            ctx.restore()
+            scale.ticks = yearTicks(props.series, scale.width, labelWidth).map(
+              (value) => ({ value }),
+            )
           },
           grid: { display: false },
           border: { display: false },
@@ -104,7 +109,7 @@ function syncChart() {
           ticks: {
             precision: 0,
             maxRotation: 0,
-            autoSkip: true,
+            autoSkip: false,
             callback: (value) => `${value}`,
           },
         },
@@ -180,11 +185,11 @@ onBeforeUnmount(() => {
         >人口の年別値は読み上げ用の表で確認できます。</canvas
       >
     </div>
-    <figcaption :id="descriptionId" class="chart-description">
+    <p :id="descriptionId" class="chart-description chart-data-assistive">
       {{ categoryLabel }}・{{
         series.length
       }}県の人口推移。横軸は年、縦軸は人口数（万人）。年別の人数は読み上げ用の表で確認できます。
-    </figcaption>
+    </p>
     <div class="chart-data chart-data-assistive">
       <table v-for="entry in series" :key="entry.prefCode">
         <caption>

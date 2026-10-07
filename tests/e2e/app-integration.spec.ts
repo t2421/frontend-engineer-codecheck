@@ -72,7 +72,8 @@ for (const width of [1440, 768, 390, 320]) {
     const initial = await chartState(page)
     expect(initial.count).toBe(1)
     expect(initial.data?.map((d) => d.label)).toEqual(['北海道', '東京都'])
-    if (width < 640) expect(initial.ticks).toEqual([1960, 1980, 2000, 2020])
+    expect(initial.ticks?.[0]).toBe(1960)
+    expect(initial.ticks?.at(-1)).toBe(2020)
     await expect(
       page.getByRole('cell', { name: '100,000人', exact: true }),
     ).toHaveCount(1)

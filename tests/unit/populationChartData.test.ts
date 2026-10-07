@@ -2,59 +2,59 @@ import { expect, test } from 'vitest'
 import {
   createPopulationChartData,
   seriesStyle,
-  mobileYearTicks,
+  yearTicks,
 } from '../../src/components/population/populationChartData'
 import { series } from '../fixtures/populationChart'
 
-test('スマホ目盛りは指定4年をデータ範囲内だけ返し、欠けた年のデータ点は追加しない', () => {
-  const input = [
-    {
-      ...series[0]!,
-      data: [
-        { year: 1970, value: 100 },
-        { year: 1990, value: 200 },
-      ],
-    },
-  ]
-  const original = structuredClone(input)
-  expect(mobileYearTicks(series)).toEqual([1960, 1980, 2000, 2020])
-  expect(mobileYearTicks(input)).toEqual([1980])
-  expect(
-    mobileYearTicks([
-      {
-        ...series[0]!,
-        data: [
-          { year: 2005, value: 100 },
-          { year: 2015, value: 200 },
-        ],
-      },
-    ]),
-  ).toEqual([])
-  expect(
-    mobileYearTicks([{ ...series[0]!, data: [{ year: 2020, value: 100 }] }]),
-  ).toEqual([2020])
-  expect(mobileYearTicks([])).toEqual([])
-  expect(input).toEqual(original)
-})
-test.each([1, 5])(
-  '%i年刻みの全ての年・人数を目盛りと独立して保持する',
-  (step) => {
-    const input = [
-      {
-        ...series[0]!,
-        data: Array.from({ length: 60 / step + 1 }, (_, i) => ({
-          year: 1960 + i * step,
-          value: 100 + i,
-        })),
-      },
-    ]
-    expect(mobileYearTicks(input)).toEqual([1960, 1980, 2000, 2020])
-    expect(
-      createPopulationChartData(input, ['blue', 'green', 'orange']).datasets[0]!
-        .data,
-    ).toEqual(input[0]!.data.map((p) => ({ x: p.year, y: p.value })))
+const withYears = (years: number[]) => [
+  { ...series[0]!, data: years.map((year) => ({ year, value: 100 })) },
+]
+test.each([[2024], [1963, 2057], [1963, 1964, 1979, 2020, 2057]])(
+  '最初と最新の年を含め、不均一年も元データを変更しない: %j',
+  (...years) => {
+    const input = withYears(years)
+    const original = structuredClone(input)
+    const ticks = yearTicks(input, 240, 32)
+    expect(ticks[0]).toBe(Math.min(...years))
+    expect(ticks.at(-1)).toBe(Math.max(...years))
+    expect(new Set(ticks).size).toBe(ticks.length)
+    expect(input).toEqual(original)
   },
 )
+test('幅とラベルサイズで間引き、端の推計年を残し、全データ点を保持する', () => {
+  const years = Array.from({ length: 101 }, (_, i) => 1963 + i)
+  const input = withYears(years)
+  for (const [width, labelWidth] of [
+    [240, 32],
+    [640, 32],
+    [240, 60],
+  ]) {
+    const ticks = yearTicks(input, width!, labelWidth!)
+    expect(ticks[0]).toBe(1963)
+    expect(ticks.at(-1)).toBe(2063)
+    for (let i = 1; i < ticks.length; i++)
+      expect(
+        ((ticks[i]! - ticks[i - 1]!) / 100) * (width! - labelWidth!),
+      ).toBeGreaterThanOrEqual(labelWidth! + 16)
+  }
+  expect(yearTicks(input, 640, 32).length).toBeGreaterThan(
+    yearTicks(input, 240, 32).length,
+  )
+  expect(yearTicks(input, 240, 60).length).toBeLessThan(
+    yearTicks(input, 240, 32).length,
+  )
+  expect(createPopulationChartData(input, []).datasets[0]!.data).toHaveLength(
+    101,
+  )
+  expect(yearTicks([], 240, 32)).toEqual([])
+})
+test('県変更で範囲の端を再計算する', () => {
+  const input = [...withYears([1985, 2025]), ...withYears([1963, 2057])]
+  expect(yearTicks(input, 240, 32)).toEqual(
+    expect.arrayContaining([1963, 2057]),
+  )
+  expect(yearTicks(input.slice(0, 1), 240, 32)).toEqual([1985, 2025])
+})
 
 test('異なる年の県も数値座標で正しい年・人数を保持し入力を変更しない', () => {
   const original = structuredClone(series)

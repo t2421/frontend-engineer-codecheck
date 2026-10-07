@@ -79,10 +79,14 @@ test('未選択では生成せず、県名凡例・現在区分・年と人数�
   expect(wrapper.get('[aria-label="都道府県の凡例"]').text()).toContain(
     '東京都',
   )
+  expect(wrapper.find('figcaption').exists()).toBe(false)
+  expect(wrapper.get('.chart-description').classes()).toContain(
+    'chart-data-assistive',
+  )
   expect(wrapper.find('details').exists()).toBe(false)
   expect(wrapper.get('.chart-data').classes()).toContain('chart-data-assistive')
   expect(wrapper.get('canvas').attributes('aria-describedby')).toBe(
-    wrapper.get('figcaption').attributes('id'),
+    wrapper.get('.chart-description').attributes('id'),
   )
   expect(wrapper.get('caption').text()).toContain('東京都・老年人口')
   expect(wrapper.get('tbody').text()).toContain('1960年9,000,000人')

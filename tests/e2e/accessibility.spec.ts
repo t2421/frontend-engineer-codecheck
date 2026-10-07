@@ -148,6 +148,8 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
       }, testInfo) => {
         await page.setViewportSize({ width, height: 1000 })
         await page.goto(`/tests/preview/prefecture-selection.html?mode=${mode}`)
+        if (width < 640)
+          await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
         if (mode === 'loading')
           await expect(page.locator('.checkbox-skeleton')).toHaveCount(47)
         else
