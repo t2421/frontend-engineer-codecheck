@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import App from '../../src/App.vue'
+import PopulationPage from '../../src/pages/PopulationPage.vue'
 import PopulationDataPanel from '../../src/components/population/PopulationDataPanel.vue'
 import { populationResponse } from '../fixtures/population'
 afterEach(() => vi.unstubAllGlobals())
@@ -10,7 +10,7 @@ test('県選択をmainの人口区分UIへ渡し、区分変更・全解除で�
     .mockResolvedValue(new Response(JSON.stringify(populationResponse())))
   vi.stubGlobal('fetch', fetch)
   const prefectures = [{ prefCode: 1, prefName: '北海道' }]
-  const wrapper = mount(App, {
+  const wrapper = mount(PopulationPage, {
     props: { prefectureLoader: () => Promise.resolve(prefectures) },
     // Canvas rendering is covered by PopulationChart tests and browser E2E.
     global: { stubs: { PopulationChart: true } },
@@ -50,7 +50,7 @@ test('全体確認用loaderを既存人口パネルへ渡し、選択した県�
   const populationLoader = vi
     .fn()
     .mockResolvedValue(parsePopulation(populationResponse()))
-  const wrapper = mount(App, {
+  const wrapper = mount(PopulationPage, {
     props: {
       prefectureLoader: () =>
         Promise.resolve([{ prefCode: 13, prefName: '東京都' }]),
