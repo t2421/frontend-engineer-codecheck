@@ -29,7 +29,7 @@
 
 ## Worker Secretの別作業への引継ぎ
 
-必要な名前は **`YUMEMI_API_KEY`**。Workerの実行時`env`だけから読む。上流リクエストにはこの値を`X-API-KEY`として付け、ブラウザーのAuthorization・Cookie・X-API-KEYなどは転送しない。上流redirectは追わず、秘密値を別ホストへ送らない。キー・IP・上流例外をログに出さない。
+必要な名前は **`YUMEMI_API_KEY`**。Workerの実行時`env`だけから読む。上流リクエストにはこの値を`X-API-KEY`として付け、加えてプロキシ自身を名乗る固定の`User-Agent: population-viewer-proxy`を送る。User-Agentの有無による応答差は下の比較検証に記録する。ブラウザーのAuthorization・Cookie・X-API-KEYなどは転送しない。上流redirectは追わず、秘密値を別ホストへ送らない。キー・IP・上流例外をログに出さない。
 
 本番Worker `population-viewer`への値の登録・更新は、別作業の承認済み手順で行う。Wranglerの対話入力で `pnpm exec wrangler secret put YUMEMI_API_KEY` を使う場合、Secret操作が即時公開を伴う可能性を[公式手順](https://developers.cloudflare.com/workers/configuration/secrets/)と[環境文書](./CLOUDFLARE_ENVIRONMENT.md)で確認する。値をコマンド引数・チャット・repoへ貼らない。今回このコマンドは実行していない。
 
@@ -41,8 +41,24 @@ PR #44はマージ済み。2026-10-06（UTC）に取得したmain `2867e3ca76f26
 
 Vitestのモックで、公式サンプルの一覧と人口JSON、1・47の県コード、固定転送先・Secretだけの送信、正常・不正要求・上流失敗・本文を含むタイムアウト・Secret不足・制限超過・Rate Limit失敗・秘密値反射（JSON escape含む）を確認した。人口fixtureは公式サンプルに2区分を補い、4区分と`rate`の保持も確認した。これらは実上流との疎通を証明しない。
 
-**実API疎通と実データの契約確認は未検証**。この独立worktreeには本人が提供した実行時Secretがなく、値の探索・表示・登録は行っていない。公開API仕様との契約照合とモック検証を、実API検証と区別する。Secret登録、認証権限作成、公開deploy、実Cloudflareでの近似Rate Limit負荷確認は別作業に残す。
+**初回実装時は実API疎通と実データの契約確認が未検証**だった。この独立worktreeには本人が提供した実行時Secretがなく、値の探索・表示・登録は行っていない。公開API仕様との契約照合とモック検証を、実API検証と区別する。初回実装ではSecret登録、認証権限作成、公開deploy、実Cloudflareでの近似Rate Limit負荷確認を別作業に残した。
 
 ローカル検証結果: Node 24.16.0 / native pnpm 12.8.1。先行テスト44件は実装前41失敗・3成功、その後の追加を含むWorkerテスト45件、全Vitest 56件、Chrome E2E 7件が成功。`pnpm check`（ESLint・Stylelint・Prettier・vue-tsc）、`pnpm build`、Wrangler deploy `--dry-run`、`git diff --check`が成功した。dry-runは`API_RATE_LIMITER (200 requests/10s)`を確認し、公開していない。Corepackによる子コマンド解決の不調はnative pnpmのディレクトリを作業shellのPATH先頭に置いて回避した。Wranglerログは`WRANGLER_LOG_PATH`で一時ディレクトリへ出力した。
 
 ビルド済みWorkerのローカルpreviewでは、`/`と深いSPAパスが200、GET 2本がSecret未設定の503、不正県コードが400、未知APIが404を確認した。配信bundleにテストのダミーSecret・ブラウザー認証fixtureが含まれないことも確認した。ローカルserverは停止済み。実Cloudflareのカウンタ精度・実上流通信はこの検証に含まれない。
+
+### User-Agent比較検証（2026-10-07）
+
+以下は本人から共有された実測結果であり、この修正を準備したエージェントによる独立した上流直接検証ではない。Secret値は取得・表示・登録していない。
+
+| 環境・要求                                                               | 観測結果                                             |
+| ------------------------------------------------------------------------ | ---------------------------------------------------- |
+| curl、キーなし、既定User-Agent                                           | 403 / text/plain、x-amzn-requestidあり               |
+| curl、キーなし、User-Agent削除                                           | 403 / HTML、server: CloudFront、x-amzn-requestidなし |
+| curl、キーあり、既定User-Agent                                           | 200 / JSON                                           |
+| curl、キーあり、User-Agent削除                                           | 403 / HTML                                           |
+| curl、キーあり、User-Agent: population-viewer-proxy                      | 200 / JSON                                           |
+| workerd local/remote、同一リクエスト内でUser-Agentなし／固定値ありを比較 | 403 / HTML → 200 / JSON                              |
+| workerd local/remote、キーなし、固定User-Agentあり                       | 403 / text/plain                                     |
+
+Accept削除・HTTP/1.1への変更では結果に差がなかったとの報告。修正後のWorkerで両APIが200、都道府県47件、不正県コード48が400、未知APIが404となったとの報告も受けた。これらの応答差は固定User-Agentを送る根拠となるが、上流の具体的なWAF設定や拒否処理の内部順序までは確定しない。モックテストと本人による実測を区別し、本番反映後は公開WorkerへのキーなしGETで再確認する。

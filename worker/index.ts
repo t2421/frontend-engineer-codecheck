@@ -1,4 +1,9 @@
-import { retryAfterSeconds, upstreamOrigin, upstreamTimeoutMs } from './config'
+import {
+  retryAfterSeconds,
+  upstreamOrigin,
+  upstreamTimeoutMs,
+  upstreamUserAgent,
+} from './config'
 import { isSafeUpstreamResponse, validateRequest } from './validation'
 
 interface Env {
@@ -57,7 +62,7 @@ async function fetchUpstreamJson(
   // 固定originと検証済みのパス・queryだけを使用し、認証情報やredirectを転送しない。
   const response = await fetch(`${upstreamOrigin}${upstreamPath}`, {
     method: 'GET',
-    headers: { 'X-API-KEY': apiKey },
+    headers: { 'X-API-KEY': apiKey, 'User-Agent': upstreamUserAgent },
     redirect: 'manual',
     signal,
   })

@@ -39,6 +39,7 @@ function request(path = prefecturesPath, method = 'GET') {
       Authorization: 'Bearer browser-credential',
       'X-API-KEY': 'browser-api-key',
       Cookie: 'session=browser-session',
+      'User-Agent': 'browser-user-agent',
       'X-Forwarded-For': 'spoofed-ip',
     },
   })
@@ -97,7 +98,10 @@ for (const [path, body] of [
       `https://frontend-engineer-codecheck-api.mirai.yumemi.io${path}`,
       {
         method: 'GET',
-        headers: { 'X-API-KEY': secret },
+        headers: {
+          'X-API-KEY': secret,
+          'User-Agent': 'population-viewer-proxy',
+        },
         redirect: 'manual',
         signal: expect.any(AbortSignal),
       },
