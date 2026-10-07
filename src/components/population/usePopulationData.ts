@@ -29,10 +29,12 @@ export function usePopulationData(
 ) {
   const category = ref<PopulationCategory>('total')
   const entries = shallowReactive(new Map<number, Entry>())
+  // scope 破棄後に届いた応答で reactive state を更新しないため。
   let active = true
   onScopeDispose(() => {
     active = false
   })
+  // 同じ prefCode が重複して渡された場合に 1 件にまとめる。
   const prefectures = computed(() => [
     ...new Map(toValue(selected).map((p) => [p.prefCode, p])).values(),
   ])

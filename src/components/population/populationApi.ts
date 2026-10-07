@@ -22,79 +22,97 @@ export interface PopulationSeries extends SelectedPrefecture {
   boundaryYear: number
   data: readonly PopulationPoint[]
 }
-const failure = () => new Error('人口データを取得できませんでした')
+export const POPULATION_FETCH_ERROR = '人口データを取得できませんでした'
+
+export class PopulationDataError extends Error {
+  constructor(reason: string, options?: { cause?: unknown }) {
+    super(POPULATION_FETCH_ERROR, options)
+    this.name = 'PopulationDataError'
+    this.reason = reason
+  }
+  readonly reason: string
+}
+
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 function nonnegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 }
-export function parsePopulation(body: unknown): PopulationComposition {
-  if (!record(body) || body.message !== null || !record(body.result))
-    throw failure()
-  const { boundaryYear, data } = body.result
-  if (
-    !nonnegativeInteger(boundaryYear) ||
-    !Array.isArray(data) ||
-    data.length !== 4
-  )
-    throw failure()
-  const categories = {} as PopulationComposition['categories']
-  for (const { value, label } of populationCategories) {
-    const matches = data.filter(
-      (series: unknown) => record(series) && series.label === label,
+function assert(condition: unknown, reason: string): asserts condition {
+  if (!condition) throw new PopulationDataError(reason)
+}
+
+function parsePoint(raw: unknown, seenYears: Set<number>): PopulationPoint {
+  assert(record(raw), 'point is not an object')
+  const { year, value, rate } = raw
+  assert(nonnegativeInteger(year), 'year is not a nonnegative integer')
+  assert(nonnegativeInteger(value), 'value is not a nonnegative integer')
+  assert(!seenYears.has(year), 'year is duplicated')
+  if (rate !== undefined) {
+    assert(typeof rate === 'number', 'rate is not a number')
+    assert(
+      Number.isFinite(rate) && rate >= 0 && rate <= 100,
+      'rate is out of range',
     )
-    const series: unknown = matches[0]
-    if (
-      matches.length !== 1 ||
-      !record(series) ||
-      !Array.isArray(series.data) ||
-      !series.data.length
-    )
-      throw failure()
-    const years = new Set<number>()
-    categories[value] = series.data
-      .map((point: unknown) => {
-        if (
-          !record(point) ||
-          !nonnegativeInteger(point.year) ||
-          !nonnegativeInteger(point.value) ||
-          years.has(point.year)
-        )
-          throw failure()
-        if (
-          point.rate !== undefined &&
-          (typeof point.rate !== 'number' ||
-            !Number.isFinite(point.rate) ||
-            point.rate < 0 ||
-            point.rate > 100)
-        )
-          throw failure()
-        years.add(point.year)
-        return {
-          year: point.year,
-          value: point.value,
-          ...(point.rate === undefined ? {} : { rate: point.rate as number }),
-        }
-      })
-      .sort((a, b) => a.year - b.year)
   }
+  seenYears.add(year)
+  return { year, value, ...(rate === undefined ? {} : { rate }) }
+}
+
+function parseSeries(raw: unknown): readonly PopulationPoint[] {
+  assert(record(raw), 'series is not an object')
+  assert(
+    Array.isArray(raw.data) && raw.data.length,
+    'series data is empty or invalid',
+  )
+  const seenYears = new Set<number>()
+  return raw.data
+    .map((point: unknown) => parsePoint(point, seenYears))
+    .sort((a, b) => a.year - b.year)
+}
+
+function findSeries(data: readonly unknown[], label: string): unknown {
+  const matches = data.filter(
+    (series) => record(series) && series.label === label,
+  )
+  assert(matches.length === 1, 'required label is missing or duplicated')
+  return matches[0]
+}
+
+export function parsePopulation(body: unknown): PopulationComposition {
+  assert(
+    record(body) && body.message === null && record(body.result),
+    'response envelope is invalid',
+  )
+  const { boundaryYear, data } = body.result
+  assert(
+    nonnegativeInteger(boundaryYear),
+    'boundaryYear is not a nonnegative integer',
+  )
+  assert(Array.isArray(data), 'data is not an array')
+  const categories = {} as PopulationComposition['categories']
+  for (const { value, label } of populationCategories)
+    categories[value] = parseSeries(findSeries(data, label))
   return { boundaryYear, categories }
 }
 export async function fetchPopulation(
   prefCode: number,
   fetcher: typeof fetch = fetch,
 ): Promise<PopulationComposition> {
-  if (!Number.isInteger(prefCode) || prefCode < 1 || prefCode > 47)
-    throw failure()
+  assert(
+    Number.isInteger(prefCode) && prefCode >= 1 && prefCode <= 47,
+    'prefecture code is invalid',
+  )
   try {
     const response = await fetcher(
       `/api/v1/population/composition/perYear?prefCode=${prefCode}`,
       { method: 'GET', signal: AbortSignal.timeout(15000) },
     )
-    if (!response.ok) throw failure()
+    assert(response.ok, 'HTTP request failed')
     return parsePopulation(await response.json())
-  } catch {
-    throw failure()
+  } catch (error) {
+    if (error instanceof PopulationDataError) throw error
+    throw new PopulationDataError('request failed', { cause: error })
   }
 }
