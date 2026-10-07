@@ -34,13 +34,16 @@ jobs:
     needs: identify
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      app-url: ${{ steps.preview.outputs.app-url }}
+      base-url: ${{ steps.preview.outputs.base-url }}
     concurrency:
       group: cloudflare-preview-${{ needs.identify.outputs.number }}
       cancel-in-progress: false
     permissions:
       contents: read
       actions: read
-      pull-requests: write
+      pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -63,7 +66,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Download static assets only
         run: gh run download "$RUN_ID" --name review-assets --dir review-assets
-      - name: Publish Preview
+      - id: preview
+        name: Publish Preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -74,16 +78,74 @@ jobs:
           pnpm exec wrangler preview --config wrangler.review.jsonc --name "pr-$PR_NUMBER" --ignore-base-config --json > "$RUNNER_TEMP/preview-output.log"
           sed -n '/^{/,$p' "$RUNNER_TEMP/preview-output.log" > "$RUNNER_TEMP/preview.json"
           url="$(jq -er '.preview.urls[0]' "$RUNNER_TEMP/preview.json")"
-          curl --fail --silent --show-error "$url/" > /dev/null
-          printf '<!-- cloudflare-pr-preview -->\nCloudflare UI Preview: %s\n\n対象commit: `%s`\n\nURLを知っている方が閲覧できます。本番API・Secretは使用しません。\n' "$url" "$HEAD_SHA" > "$RUNNER_TEMP/preview-comment.md"
-      - name: Create or update the marked PR comment
-        run: |
-          comment_id="$(gh api --paginate "repos/$GH_REPO/issues/$PR_NUMBER/comments" --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- cloudflare-pr-preview -->"))) | .id' | head -n 1)"
-          if [ -n "$comment_id" ]; then
-            jq -n --rawfile body "$RUNNER_TEMP/preview-comment.md" '{body:$body}' | gh api --method PATCH "repos/$GH_REPO/issues/comments/$comment_id" --input -
-          else
-            gh pr comment "$PR_NUMBER" --body-file "$RUNNER_TEMP/preview-comment.md"
-          fi
+          app_url="$url/performance/$HEAD_SHA/"
+          curl --fail --silent --show-error "$app_url" > /dev/null
+          echo "app-url=$app_url" >> "$GITHUB_OUTPUT"
+          echo "base-url=$url" >> "$GITHUB_OUTPUT"
+  measure:
+    needs: [identify, publish]
+    if: always() && needs.identify.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    outputs:
+      summary: ${{ steps.collect.outputs.summary }}
+    permissions:
+      contents: read
+    steps:
+      # Default-branch tools only. Browser executes public UI without secrets/write token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          run_install: false
+          cache: false
+      - run: pnpm install --frozen-lockfile
+      - name: Install Google Chrome
+        if: needs.publish.result == 'success'
+        run: pnpm exec playwright install --with-deps chrome
+      - id: collect
+        name: Collect reference Lighthouse summary
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PREVIEW_URL: ${{ needs.publish.outputs.app-url }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        run: node .github/scripts/review-performance.mjs collect
+  performance-comment:
+    needs: [identify, publish, measure]
+    if: always() && needs.identify.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: performance-comment-${{ needs.identify.outputs.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Trusted main code parses bounded summary JSON from env; never executes PR data.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Update only the current head's Preview and performance comments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.identify.outputs.number }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PREVIEW_URL: ${{ needs.publish.outputs.app-url }}
+          PERFORMANCE_SUMMARY: ${{ needs.measure.outputs.summary }}
+          PREVIEW_BASE_URL: ${{ needs.publish.outputs.base-url }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        run: node .github/scripts/review-performance.mjs comment
   cleanup:
     if: >-
       github.event_name == 'pull_request_target' &&
