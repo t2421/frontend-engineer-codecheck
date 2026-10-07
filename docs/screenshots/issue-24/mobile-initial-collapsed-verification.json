@@ -1,6 +1,6 @@
 {
   "baseSha": "49558ad50cd096740b2096fb7800946ee0988aea",
-  "scope": "local uncommitted follow-up; synthetic data",
+  "scope": "local follow-up captured before commit; synthetic data",
   "chrome": "154.0.8037.98",
   "mobileInitialCollapsed": true,
   "screens": [
