@@ -73,6 +73,20 @@ const selectedPrefectures = computed(() =>
   prefectures.filter((p) => selected.value.includes(p.prefCode)),
 )
 const factors = [1, 0.12, 0.6, 0.28]
+// Additional synthetic year sequences verify that axis labels never resample data.
+const yearMode = new globalThis.URLSearchParams(globalThis.location.search).get(
+  'years',
+)
+const fixtureYears =
+  yearMode === 'five-year'
+    ? Array.from({ length: 13 }, (_, i) => 1960 + i * 5)
+    : yearMode === 'annual'
+      ? Array.from({ length: 61 }, (_, i) => 1960 + i)
+      : yearMode === 'partial'
+        ? [1970, 1975, 1980, 1985, 1990]
+        : yearMode === 'gap'
+          ? [2005, 2010, 2015]
+          : undefined
 async function loader(prefCode: number): Promise<PopulationComposition> {
   const values =
     prefCode === 13
@@ -82,21 +96,27 @@ async function loader(prefCode: number): Promise<PopulationComposition> {
         : prefCode === 1
           ? [480, 520, 560, 580, 560, 550, 520]
           : [200, 240, 260, 250, 270, 280, 260].map((v) => v + prefCode)
+  const points = fixtureYears
+    ? fixtureYears.map((year, i) => ({
+        year,
+        value: values[0]! * 10000 + i * 10000,
+      }))
+    : values.map((v, j) => ({ year: 1960 + j * 10, value: v * 10000 }))
   return {
     boundaryYear: 2020,
     categories: {
-      total: values.map((v, j) => ({ year: 1960 + j * 10, value: v * 10000 })),
-      young: values.map((v, j) => ({
-        year: 1960 + j * 10,
-        value: Math.round(v * 10000 * factors[1]!),
+      total: points,
+      young: points.map((p) => ({
+        year: p.year,
+        value: Math.round(p.value * factors[1]!),
       })),
-      working: values.map((v, j) => ({
-        year: 1960 + j * 10,
-        value: Math.round(v * 10000 * factors[2]!),
+      working: points.map((p) => ({
+        year: p.year,
+        value: Math.round(p.value * factors[2]!),
       })),
-      elder: values.map((v, j) => ({
-        year: 1960 + j * 10,
-        value: Math.round(v * 10000 * factors[3]!),
+      elder: points.map((p) => ({
+        year: p.year,
+        value: Math.round(p.value * factors[3]!),
       })),
     },
   }

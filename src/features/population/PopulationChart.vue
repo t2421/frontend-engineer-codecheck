@@ -8,13 +8,18 @@ import {
   LinearScale,
   Tooltip,
   type Point,
+  type LinearScaleOptions,
 } from 'chart.js'
 import {
   populationCategories,
   type PopulationCategory,
   type PopulationSeries,
 } from './populationApi'
-import { createPopulationChartData, seriesStyle } from './populationChartData'
+import {
+  createPopulationChartData,
+  seriesStyle,
+  mobileYearTicks,
+} from './populationChartData'
 import StatusMessage from '../../shared/ui/StatusMessage.vue'
 import series1 from './assets/series-1.svg'
 import series2 from './assets/series-2.svg'
@@ -63,9 +68,12 @@ function syncChart() {
       maintainAspectRatio: false,
       animation: false,
       onResize(instance, size) {
-        // Fewer ticks keep the same numeric axes readable on narrow screens.
-        instance.options.scales!.x!.ticks!.maxTicksLimit =
-          size.width < 480 ? 3 : 7
+        // Use the same viewport breakpoint as the mobile layout, not plot width.
+        const xTicks = instance.options.scales!.x!.ticks as Partial<
+          LinearScaleOptions['ticks']
+        >
+        xTicks.autoSkip = !globalThis.matchMedia('(width < 640px)').matches
+        xTicks.maxTicksLimit = 7
         instance.options.scales!.y!.ticks!.maxTicksLimit =
           size.width < 480 ? 3 : 5
       },
@@ -85,6 +93,12 @@ function syncChart() {
         x: {
           type: 'linear',
           bounds: 'data',
+          afterBuildTicks(scale) {
+            if (globalThis.matchMedia('(width < 640px)').matches)
+              scale.ticks = mobileYearTicks(props.series).map((value) => ({
+                value,
+              }))
+          },
           grid: { display: false },
           border: { display: false },
           title: { display: true, text: '年', align: 'end' },

@@ -23,7 +23,7 @@
 
 plot は PC/tablet 344px・mobile 266px、間隔20px、既存の文字・余白・系列色トークンを再利用します。凡例を折り返し、参照3県の装飾SVGをローカル保存し、実ブラウザで各24×16px・非空・読込成功を確認しました。データ依存の線は Chart.js で描画します。Figma の仮の折れ線 SVG はアプリの素材にしません。
 
-目盛りの上限・間隔は選択値に応じた Chart.js の自動計算です。Figma のサンプル固定目盛り・注記をそのまま固定せず、現在区分の説明と開閉できる人口表を追加しています。既存のフォント配信方針（Noto Sans JP 未導入時は端末 sans-serif）を維持します。画面全体の県選択エリアは検証専用で、Figma の選択 UI 実装を示しません。
+PC/tabletの目盛りと縦軸は選択値に応じた Chart.js の自動計算です。スマホ（既存viewport breakpointの640px未満）の横軸は1960・1980・2000・2020年のうち、入力データの年の範囲内だけを表示します。リサイズで表示方法を切り替え、データ点・年の範囲・人数・tooltipは変更しません。範囲内に指定年がなくても偽の点を追加しません。Figma のサンプル固定目盛り・注記をそのまま固定せず、現在区分の説明と開閉できる人口表を追加しています。既存のフォント配信方針（Noto Sans JP 未導入時は端末 sans-serif）を維持します。画面全体の県選択エリアは検証専用で、Figma の選択 UI 実装を示しません。
 
 ## アクセシビリティ
 
@@ -59,3 +59,9 @@ Mac / Node 24.16.0 / native pnpm 12.8.1 / installed Google Chrome。TDD で描�
 review build の既存生成先 `dist-review` は `.gitignore` に含まれますが、既存 ESLint/Prettier の除外には含まれません。生成済み出力があると `pnpm check` が生成JSを検査するため、今回の最終 check 前に出力を `/tmp/issue26-review-build-final-20261007` へ移しました。検査規則は緩和していません。
 
 実APIデータでの画面統合は #24 接続後に確認します。この描画専用部品の値・操作は合成 fixture で検証済み。PR・Previewの最新状態はPR本文の検証結果を参照してください。
+
+## スマホ横軸の表示変更（ローカル検証）
+
+2026-10-07の追加依頼で、横軸の目盛りを上記4年に変更しました。1年/5年刻みの全点保持、指定年が一部/全部範囲外の入力、非目盛り年のtooltip、639/640px境界・320/390/768/1440px間のresize、同一instanceを確認。単体・部品59件、Chrome26件、check・buildが成功しています。スマホの4キャプチャを更新し、PC/tabletのキャプチャに変更はありません。PR・Previewへの反映結果はPR本文を参照してください。
+
+[指定APIの公式仕様](https://github.com/yumemi-inc/frontend-engineer-codecheck/blob/main/docs/api.md)は年単位のデータとして説明しますが、固定10年/5年刻みは規定せず、例は1960年の1点です。既存review fixtureの10年刻みはFigmaに合わせた合成データで、実APIの刻みを保証するものではありません。今回も実APIは呼ばず、取得済みデータの`year`をそのまま保持する描画を検証しています。`?years=five-year`・`?years=annual`・`?years=partial`・`?years=gap`で年の刻み・範囲が異なる合成fixtureを確認できます。

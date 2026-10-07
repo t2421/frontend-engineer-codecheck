@@ -23,6 +23,7 @@ async function snapshot(page: Page) {
         ? { x: chart.scales.x.type, y: chart.scales.y.type }
         : undefined,
       yTicks: chart?.scales.y.ticks.map((t) => t.label),
+      xTicks: chart?.scales.x.ticks.map((t) => t.value),
       tooltip: chart?.tooltip
         ? {
             title: chart.tooltip.title,
@@ -51,6 +52,11 @@ for (const width of [1440, 768, 390, 320]) {
     const initial = await snapshot(page)
     expect(initial.count).toBe(1)
     expect(initial.axes).toEqual({ x: 'linear', y: 'linear' })
+    expect(initial.xTicks).toEqual(
+      width < 640
+        ? [1960, 1980, 2000, 2020]
+        : [1960, 1970, 1980, 1990, 2000, 2010, 2020],
+    )
     expect(initial.datasets?.map((d) => d.label)).toEqual(['東京都', '北海道'])
     expect(initial.datasets?.[0]?.data).toEqual(
       [1960, 1970, 1980, 1990, 2000, 2010, 2020].map((x, i) => ({
@@ -130,6 +136,72 @@ for (const width of [1440, 768, 390, 320]) {
     expect((await snapshot(page)).count).toBe(0)
   })
 }
+
+test('5年/1年刻みの点とtooltipを維持し、639/640px境界のresizeでスマホ目盛りだけ切り替える', async ({
+  page,
+}) => {
+  for (const [mode, step] of [
+    ['five-year', 5],
+    ['annual', 1],
+  ] as const) {
+    await page.setViewportSize({ width: 768, height: 1100 })
+    await page.goto(`/tests/e2e/fixtures/population-chart.html?years=${mode}`)
+    await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
+    await expect(page.locator('canvas')).toBeVisible()
+    const initial = await snapshot(page)
+    const expected = Array.from({ length: 60 / step + 1 }, (_, i) => ({
+      x: 1960 + i * step,
+      y: 7600000 + i * 10000,
+    }))
+    expect(initial.datasets?.[0]?.data).toEqual(expected)
+    expect(initial.xTicks).toEqual([1960, 1970, 1980, 1990, 2000, 2010, 2020])
+    for (const width of [639, 390, 320, 640, 768, 1440, 390]) {
+      await page.setViewportSize({ width, height: 1100 })
+      await expect
+        .poll(async () => (await snapshot(page)).xTicks)
+        .toEqual(width < 640 ? [1960, 1980, 2000, 2020] : initial.xTicks)
+      const current = await snapshot(page)
+      expect(current.id).toBe(initial.id)
+      expect(current.count).toBe(1)
+      expect(current.datasets?.[0]?.data).toEqual(expected)
+      expect(current.points).toHaveLength(expected.length)
+    }
+    const canvas = page.locator('canvas')
+    await canvas.scrollIntoViewIfNeeded()
+    const point = (await snapshot(page)).points![1]!
+    const box = (await canvas.boundingBox())!
+    await page.mouse.move(box.x + point.x, box.y + point.y)
+    await expect
+      .poll(async () => (await snapshot(page)).tooltip?.title)
+      .toEqual([`${1960 + step}年`])
+    expect((await snapshot(page)).tooltip?.body.flat()).toEqual([
+      '東京都: 7,610,000人',
+    ])
+  }
+})
+
+test('指定年の一部/全部がデータ範囲外でも範囲と元の点を維持する', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 1100 })
+  for (const [mode, years, ticks] of [
+    ['partial', [1970, 1975, 1980, 1985, 1990], [1980]],
+    ['gap', [2005, 2010, 2015], []],
+  ] as const) {
+    await page.goto(`/tests/e2e/fixtures/population-chart.html?years=${mode}`)
+    await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
+    await expect(page.locator('canvas')).toBeVisible()
+    const current = await snapshot(page)
+    expect(current.xTicks).toEqual(ticks)
+    expect(current.datasets?.[0]?.data.map((p) => p.x)).toEqual(years)
+    expect(current.points).toHaveLength(years.length)
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true)
+  }
+})
 
 test('47県の凡例・表とリサイズで重なり/横溢れ/instance重複がなく、人数tooltipを描画する', async ({
   page,

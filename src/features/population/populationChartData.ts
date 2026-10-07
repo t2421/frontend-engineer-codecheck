@@ -1,6 +1,13 @@
 import type { ChartData, Point } from 'chart.js'
 import type { PopulationSeries } from './populationApi'
 
+export function mobileYearTicks(series: readonly PopulationSeries[]) {
+  const years = series.flatMap((s) => s.data.map((p) => p.year))
+  const min = Math.min(...years)
+  const max = Math.max(...years)
+  return [1960, 1980, 2000, 2020].filter((year) => year >= min && year <= max)
+}
+
 // The three reference prefectures retain Figma's solid/circle,
 // dashed/square and dotted/triangle. All others have a stable combination.
 const prefectureOrder = [
