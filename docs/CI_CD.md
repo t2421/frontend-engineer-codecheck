@@ -2,13 +2,12 @@
 
 ## workflow
 
-| workflow                                                                                | 入口と役割                                                                  |
-| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| [Checks](../.github/workflows/checks.yml)                                               | PR・main push・手動・workflow呼出し。品質・テスト・build・配備dry-run・監査 |
-| [Review assets](../.github/workflows/review-build.yml)                                  | 同一repoのPR更新。Secretなしで静的UIをbuild                                 |
-| [Publish review](../.github/workflows/review-publish.yml)                               | Review assets成功後にPreview公開・コメント更新。PR close/merge時に削除      |
-| [Deploy production](../.github/workflows/deploy.yml)                                    | mainを選ぶ手動実行。同じcommitでChecksを呼び直し、その完了を待って本番公開  |
-| [Diagnose Cloudflare metadata](../.github/workflows/cloudflare-metadata-diagnostic.yml) | mainから手動GET診断。build・deploy・Secret変更・人口API呼出しは行わない     |
+| workflow                                                  | 入口と役割                                                                  |
+| --------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [Checks](../.github/workflows/checks.yml)                 | PR・main push・手動・workflow呼出し。品質・テスト・build・配備dry-run・監査 |
+| [Review assets](../.github/workflows/review-build.yml)    | 同一repoのPR更新。Secretなしで静的UIをbuild                                 |
+| [Publish review](../.github/workflows/review-publish.yml) | Review assets成功後にPreview公開・コメント更新。PR close/merge時に削除      |
+| [Deploy production](../.github/workflows/deploy.yml)      | mainを選ぶ手動実行。同じcommitでChecksを呼び直し、その完了を待って本番公開  |
 
 PRの導入・build/testへ公開Secretsを渡しません。監査の未承認指摘・通信失敗はChecksと本番公開を止めます。ブラウザstepが実行された場合だけPlaywright/axe成果物を保存し、skip・取消時は保存しません。保持期間や再試行の詳細はworkflowを参照してください。
 
@@ -22,22 +21,22 @@ Previewは静的UI専用です。Worker/API・Secrets・本番binding・部品fi
 
 close時の削除失敗はcleanup jobを再実行します。設定は[wrangler.review.jsonc](../wrangler.review.jsonc)、ローカル閲覧は[開発手順](./DEVELOPMENT.md)を参照してください。
 
-## 本番公開と診断
+## 本番公開
 
 Workerは`population-viewer`、本番URLは <https://population-viewer.t2421-loop.workers.dev>。本番設定は[wrangler.jsonc](../wrangler.jsonc)です。
 
 Actions → **Deploy production → Run workflow**で**main**を選びます。再実行したChecksの成功、production environmentの保護設定、必要Secretsを満たしてから公開します。公開後は画面・深いSPA URL・APIの実データと失敗/retry・利用量制限を確認します。dry-runやUI Previewだけでは完了としません。
 
-失敗stepとartifactを確認し、修正pushまたは対象runの**Re-run failed jobs / Re-run all jobs**で再確認します。Wranglerのmetadata読取失敗には**Diagnose Cloudflare metadata**を使います。ログは固定endpoint分類・status・安全な整数error codeだけで、生の応答や秘密値は出しません。一般的なエラーだけで権限不足と断定しません。[診断実装](../.github/scripts/cloudflare-metadata-diagnostic.mjs)を参照してください。
+失敗stepとartifactを確認し、修正pushまたは対象runの**Re-run failed jobs / Re-run all jobs**で再確認します。
 
 ## Secrets
 
-| 設定先                               | 名前・用途                                                               |
-| ------------------------------------ | ------------------------------------------------------------------------ |
-| GitHub `production` environment      | `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`：本番公開・metadata診断 |
-| GitHub repository Secrets            | 同じ2名：Preview公開・削除                                               |
-| Worker Secret                        | `YUMEMI_API_KEY`：上流API認証                                            |
-| ローカル`.dev.vars`（gitignore対象） | `YUMEMI_API_KEY`：ローカル実API                                          |
+| 設定先                               | 名前・用途                                                 |
+| ------------------------------------ | ---------------------------------------------------------- |
+| GitHub `production` environment      | `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`：本番公開 |
+| GitHub repository Secrets            | 同じ2名：Preview公開・削除                                 |
+| Worker Secret                        | `YUMEMI_API_KEY`：上流API認証                              |
+| ローカル`.dev.vars`（gitignore対象） | `YUMEMI_API_KEY`：ローカル実API                            |
 
 tokenは対象Workerに必要な[権限](https://developers.cloudflare.com/workers/authorization/workers/)へ限定し、productionのmain制限・reviewer・有効期間を設定します。秘密値をrepo・チャット・ログ・コマンド引数・`VITE_*`へ出さず、既存OAuthをCIへ転用しません。
 
