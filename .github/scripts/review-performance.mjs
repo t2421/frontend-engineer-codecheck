@@ -248,14 +248,16 @@ export function parseSummary(value, sha, url) {
   }
 }
 
+function ratingBadge(rating) {
+  const icon = { 良好: '🟢', 改善が必要: '🟡', 不良: '🔴' }[rating] ?? '⚪'
+  return `${icon} ${rating}`
+}
+
 export function renderComment(result, runUrl) {
-  const evaluations = profiles.map((profile) => ({
-    profile,
-    label: profile === 'desktop' ? 'PC' : 'モバイル',
-    data: result.profiles?.[profile],
-    assessment: evaluateProfile(result.profiles?.[profile], profile),
-  }))
-  const rows = evaluations.map(({ label, data, assessment }) => {
+  const rows = profiles.map((profile) => {
+    const label = profile === 'desktop' ? 'PC' : 'モバイル'
+    const data = result.profiles?.[profile]
+    const assessment = evaluateProfile(data, profile)
     if (!assessment.valid) {
       const reason =
         data?.reason === 'collection-failed'
@@ -263,56 +265,23 @@ export function renderComment(result, runUrl) {
           : data?.reason === 'preview-unavailable'
             ? 'Preview未公開'
             : 'サマリー欠損・不正'
-      return `| ${label} | 判定不可 | 未計測（判定不可） | 未計測（判定不可） | 未計測（判定不可） | 未完了: ${reason} |`
+      return `| ${label} | ⚪ 判定不可 | — | — | — | 未計測（${reason}） |`
     }
     const m = data.metrics
-    return `| ${label} | ${assessment.rating} | ${(m.lcp / 1000).toFixed(2)} s（${assessment.ratings.lcp}） | ${m.cls.toFixed(3)}（${assessment.ratings.cls}） | ${Math.round(m.tbt)} ms（${assessment.ratings.tbt}） | 3/3 |`
+    return `| ${label} | ${ratingBadge(assessment.rating)} | ${(m.lcp / 1000).toFixed(2)} s（${ratingBadge(assessment.ratings.lcp)}） | ${m.cls.toFixed(3)}（${ratingBadge(assessment.ratings.cls)}） | ${Math.round(m.tbt)} ms（${ratingBadge(assessment.ratings.tbt)}） | 3/3 |`
   })
-  const conditions = evaluations
-    .map(({ label, data, assessment }) => {
-      const runs = assessment.valid ? compactConditions(data.conditions) : []
-      return `- ${label} 計測日時／版: ${runs.length ? runs.map((condition, index) => `run ${index + 1}: ${condition.measuredAt} / ${condition.browser} / Lighthouse ${condition.lighthouse}`).join('、') : '未計測・不明'}。`
-    })
-    .join('\n')
-  const summary = evaluations
-    .map(({ label, assessment }) => `${label} ${assessment.rating}`)
-    .join('／')
-  const guidance = evaluations
-    .map(
-      ({ label, assessment }) =>
-        `- ${label}: 根拠: ${assessment.evidence}。次に確認: ${assessment.next}。`,
-    )
-    .join('\n')
+  const documentationUrl = runUrl.replace(
+    /\/actions\/runs\/[^/]+$/,
+    '/blob/main/docs/PREVIEW_PERFORMANCE.md',
+  )
   return `${marker}
 ### Preview 性能（参考）
-**結果サマリー: ${summary}。**
-静的UIのラボ参考評価です。実ユーザーの合否やアプリ全体の品質保証を示しません。性能閾値によるmergeブロックはありません。
 
-| 条件 | 参考評価 | LCP中央値 | CLS中央値 | TBT中央値（ラボ参考） | 計測回数／状態 |
+| 条件 | 総合 | LCP中央値 | CLS中央値 | TBT中央値 | 計測 |
 | --- | --- | --- | --- | --- | --- |
 ${rows.join('\n')}
 
-${guidance}
-
-評価は丸め前の中央値を用い、各条件で3指標の最も厳しい区分を表示します。1指標でも欠損・失敗・未完了ならその条件は判定不可です。
-
-| 指標 | 良好 | 改善が必要 | 不良 |
-| --- | --- | --- | --- |
-| [LCP](https://web.dev/articles/lcp) | ≤2.5 s | >2.5〜4.0 s | >4.0 s |
-| [CLS](https://web.dev/articles/cls) | ≤0.1 | >0.1〜0.25 | >0.25 |
-| [TBT・PC](https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time) | ≤150 ms | >150〜350 ms | >350 ms |
-| [TBT・モバイル](https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time) | ≤200 ms | >200〜600 ms | >600 ms |
-
-LCP/CLSの公式目安をラボ中央値へ参考適用しています。実ユーザー評価の75パーセンタイルとは異なります。TBTはCore Web VitalでもINP実測値でもありません。
-
-対象commit: \`${result.sha}\`
-対象URL: ${result.url || '未公開'}
-集計日時: ${result.measuredAt}
-
-PC: 1350×940、RTT 40 ms / 10240 Kbps / CPU 1倍。モバイル: 412×823、RTT 150 ms / 1638.4 Kbps / CPU 4倍。通信・CPUはsimulate、各runでストレージ・キャッシュをリセット。
-${conditions}
-[Actions実行・エラーログ](${runUrl})。性能HTML／JSONレポートはartifactに保存せず、計測値・参考評価・条件・SHA・失敗状態をこのコメントに残します。
-通常LHCIでは操作時INP・実API待ちの完全検証はできません。最終評価は #36 で実施します。
+対象SHA: \`${result.sha}\` · [計測・判定の説明](${documentationUrl})
 `
 }
 
@@ -455,7 +424,7 @@ Cloudflare UI Preview: ${process.env.PREVIEW_BASE_URL}
 
 対象commit: \`${sha}\`
 
-URLを知っている方が閲覧できます。本番API・Secretは使用しません。
+URLを知っている方が閲覧できます。公開済み本番APIを使用し、利用枠を消費します。PreviewにSecretは渡しません。PR内のバックエンド変更は検証対象外です。
 `,
     )
   }
