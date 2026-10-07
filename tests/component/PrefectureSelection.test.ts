@@ -100,7 +100,7 @@ test('失敗→再試行→loading→成功。連打でも重複取得しない'
     '都道府県一覧を取得できませんでした',
   )
   expect(wrapper.text()).not.toContain('internal details')
-  const retry = wrapper.get('button')
+  const retry = wrapper.get('.status-message-action button')
   await retry.trigger('click')
   await retry.trigger('click')
   expect(loader).toHaveBeenCalledTimes(2)
@@ -128,4 +128,43 @@ test('47県すべてを選択でき、1県解除しても残り46県を維持す
   await wrapper.findAll('input')[12]!.setValue(false)
   expect(selected(wrapper)).toHaveLength(46)
   expect(selected(wrapper)).not.toContain(13)
+})
+
+test('スマホは取得中もclosed、開閉状態を保ってskeletonからcheckboxへ移り再取得しない', async () => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  )
+  let resolve!: (value: Prefecture[]) => void
+  const loader = vi.fn(
+    () =>
+      new Promise<Prefecture[]>((r) => {
+        resolve = r
+      }),
+  )
+  const wrapper = mount(PrefectureSelectionPanel, {
+    props: { modelValue: [], loader },
+  })
+  const toggle = wrapper.get('[aria-expanded]')
+  expect(toggle.attributes('aria-expanded')).toBe('false')
+  expect(wrapper.get('.prefecture-selector').classes()).toContain(
+    'is-collapsed',
+  )
+  await toggle.trigger('click')
+  expect(toggle.attributes('aria-expanded')).toBe('true')
+  expect(wrapper.findAll('.checkbox-skeleton')).toHaveLength(47)
+  resolve(prefectures)
+  await flushPromises()
+  expect(toggle.attributes('aria-expanded')).toBe('true')
+  await toggle.trigger('click')
+  expect(toggle.attributes('aria-expanded')).toBe('false')
+  await toggle.trigger('click')
+  expect(wrapper.findAll('input')).toHaveLength(2)
+  expect(wrapper.find('.checkbox-skeleton').exists()).toBe(false)
+  expect(loader).toHaveBeenCalledTimes(1)
+  wrapper.unmount()
 })

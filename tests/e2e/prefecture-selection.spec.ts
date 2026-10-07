@@ -155,3 +155,53 @@ test('resize: 閉じたスマホ→640pxは一覧、隠れるフォーカスを�
   await page.setViewportSize({ width: 320, height: 1000 })
   await expect(outside).toBeFocused()
 })
+
+test('スマホ: closed中も取得し、開くとskeleton、失敗と再試行、closed中の完了でも再取得しない', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 1000 })
+  let attempts = 0
+  let release!: () => void
+  await page.route('**/api/v1/prefectures', async (route) => {
+    attempts++
+    const attempt = attempts
+    await new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await route.fulfill(
+      attempt === 1
+        ? { status: 503, json: { error: 'unavailable' } }
+        : { json: { message: null, result } },
+    )
+  })
+  await page.goto('/')
+  const open = page.getByRole('button', { name: '都道府県を選ぶ' })
+  const close = page.getByRole('button', { name: '閉じる', exact: true })
+  await expect(open).toHaveAttribute('aria-expanded', 'false')
+  await expect.poll(() => attempts).toBe(1)
+  await expect(page.locator('.checkbox-skeleton').first()).not.toBeVisible()
+  await open.click()
+  await expect(page.locator('.checkbox-skeleton').first()).toBeVisible()
+  await page.screenshot({
+    path: 'test-results/mobile-prefectures-loading.png',
+    fullPage: true,
+  })
+  await close.click()
+  release()
+  await open.click()
+  await expect(page.getByRole('alert')).toContainText(
+    '都道府県一覧を取得できませんでした',
+  )
+  await page.getByRole('button', { name: '再読み込み' }).click()
+  await expect.poll(() => attempts).toBe(2)
+  await expect(page.locator('.checkbox-skeleton').first()).toBeVisible()
+  await close.click()
+  release()
+  await expect(page.locator('input[type=checkbox]')).toHaveCount(2)
+  await expect(open).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await open.click()
+  await expect(page.getByRole('checkbox')).toHaveCount(2)
+  await expect(page.locator('.checkbox-skeleton')).toHaveCount(0)
+  expect(attempts).toBe(2)
+})

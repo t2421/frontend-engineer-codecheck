@@ -23,52 +23,39 @@ function update(codes: number[]) {
 }
 </script>
 <template>
-  <h2 v-if="status !== 'ready'" :id="headingId" class="panel-title">
-    都道府県
-  </h2>
-  <p v-if="status !== 'ready'" class="panel-description">
-    比較したい都道府県を選択（複数選択可）
-  </p>
-  <!-- 読み上げ領域はbusy領域の外に置き、読み込み中の通知が抑止されないようにする。 -->
-  <p v-if="status === 'loading'" role="status" class="loading-status">
-    都道府県一覧を読み込んでいます…
-  </p>
-  <div
-    v-if="status === 'loading'"
-    class="loading-list"
-    aria-busy="true"
-    aria-hidden="true"
-  >
-    <div class="loading-grid">
-      <CheckboxSkeleton v-for="item in 47" :key="item" />
-    </div>
-  </div>
-  <StatusMessage
-    v-else-if="status === 'error'"
-    state="error"
-    :title="prefectureFailure"
-    description="接続を確認して、もう一度お試しください。"
-  >
-    <template #action><Button label="再読み込み" @click="retry" /></template>
-  </StatusMessage>
   <PrefectureSelector
-    v-else
     :heading-id="headingId"
     :prefectures="prefectures"
     :model-value="codes"
+    :status="status"
     @update:model-value="update"
-  />
+  >
+    <template v-if="status !== 'ready'" #list>
+      <!-- 読み上げ領域はbusy領域の外に置き、読み込み中の通知が抑止されないようにする。 -->
+      <p v-if="status === 'loading'" role="status" class="loading-status">
+        都道府県一覧を読み込んでいます…
+      </p>
+      <div v-if="status === 'loading'" class="loading-list" aria-busy="true">
+        <div class="loading-grid" aria-hidden="true">
+          <CheckboxSkeleton v-for="item in 47" :key="item" />
+        </div>
+      </div>
+      <StatusMessage
+        v-else
+        state="error"
+        :title="prefectureFailure"
+        description="接続を確認して、もう一度お試しください。"
+      >
+        <template #action
+          ><Button label="再読み込み" @click="retry"
+        /></template>
+      </StatusMessage>
+    </template>
+  </PrefectureSelector>
 </template>
 <style scoped>
-.panel-title {
-  font: var(--font-section);
-}
-
-.panel-description {
-  color: var(--color-text-secondary);
-}
-
 .loading-status {
+  margin-block-end: var(--space-20);
   color: var(--color-text-secondary);
 }
 
