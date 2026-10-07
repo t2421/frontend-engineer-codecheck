@@ -1,54 +1,46 @@
-# 開発・検証手順
+# 開発・検証
 
-## 起動
+## 起動と閲覧
 
-Node **24.16.0** / pnpm **12.8.1** / Git / Google Chromeを使用します。pnpmは作業shellのPATHに置きます。globalのCorepack/Yarn設定変更は不要です。[依存管理](./DEPENDENCY_SECURITY.md)も確認してください。
+Node / pnpmは[package.json](../package.json)・[.nvmrc](../.nvmrc)の固定版、ブラウザはGoogle Chromeを使用します。[依存管理](./DEPENDENCY_SECURITY.md)に従い、repoのルートで実行します。
 
 ```sh
-git clone https://github.com/t2421/frontend-engineer-codecheck.git
-cd frontend-engineer-codecheck
 nvm use
-node --version
-pnpm --version
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-表示されたURLをChromeで開きます。Vue編集はHMRで反映され、Ctrl+Cで停止します。ポート競合時は`pnpm dev --port 5176 --strictPort`を使用できます。
+表示された`http://127.0.0.1:ポート番号`を開きます。Vue編集はHMRで反映され、Ctrl+Cで停止します。ポート競合時は`pnpm dev --port 5176 --strictPort`を指定できます。
 
-実APIを使う場合は本人がgitignore対象の`.dev.vars`へ`YUMEMI_API_KEY`を設定します。値をチャット・ログ・コマンド引数へ貼らず、`VITE_*`や公開varsには入れません。設定なしでもbuild・静的配信・モックテストは可能で、ローカルAPIは503を返します。[API契約](./API_PROXY.md)と[Secrets](./CLOUDFLARE_ENVIRONMENT.md)を参照してください。
+実APIを使う場合はgitignore対象の`.dev.vars`へ本人が`YUMEMI_API_KEY`を設定します。`VITE_*`や公開varsへ入れず、値をチャット・ログ・コマンド引数へ出しません。未設定でもbuildとモックテストは可能で、APIは503です。[API契約](./API_PROXY.md)を参照してください。
 
-## テストと品質チェック
+## 検証の入口
 
-```sh
-pnpm check
-pnpm test
-pnpm test:e2e
-pnpm build
-pnpm exec wrangler deploy --dry-run --config dist/population_viewer/wrangler.json
-pnpm audit
-```
+| コマンド             | 確認すること                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| `pnpm check`         | lint・CSS・整形・型                                                                                   |
+| `pnpm test`          | 単体・Vue部品・CIスクリプト                                                                           |
+| `pnpm test:coverage` | `src/**`の行・関数・分岐・文の各80%閾値（[設定](../vitest.config.ts)）。通常test/CIでは自動実行しない |
+| `pnpm test:e2e`      | Chromeの操作・Canvas・axe                                                                             |
+| `pnpm build`         | SPA / Worker build                                                                                    |
+| `pnpm audit`         | 全severity監査。例外は[依存管理](./DEPENDENCY_SECURITY.md)を確認                                      |
 
-| コマンド             | 内容                                                                                             |
-| -------------------- | ------------------------------------------------------------------------------------------------ |
-| `pnpm check`         | ESLint・Stylelint・Prettier・vue-tsc（個別に`lint`・`lint:styles`・`format:check`・`typecheck`） |
-| `pnpm format`        | 整形を適用。変更差分を確認する                                                                   |
-| `pnpm test`          | Vitestの単体・Vue部品テストと`test:review`のCIスクリプトテスト                                   |
-| `pnpm test:watch`    | Vitestのwatch実行                                                                                |
-| `pnpm test:e2e`      | 既存Google Chromeで画面操作・Canvas・axe検査                                                     |
-| `pnpm build`         | `dist/client`と`dist/population_viewer`へ画面・Workerをbuild                                     |
-| Wrangler `--dry-run` | 配備構成を検証。本番公開は行わない                                                               |
-| `pnpm audit`         | 全severityの監査。承認済み例外は[依存管理](./DEPENDENCY_SECURITY.md)で確認                       |
+`pnpm test:watch`でVitestを継続実行、`pnpm format`で整形できます。個別コマンドは[package.json](../package.json)を参照してください。
 
-Chromeテストは5175番で専用serverを自動起動・停止し、既存serverを再利用しません。ローカルではPlaywright用ブラウザの追加downloadは不要です。失敗時traceは`test-results/`へ保存します。HTMLレポートは`pnpm test:e2e --reporter=list,html`の後、`pnpm exec playwright show-report`で開きます。
-
-テストのrouteモック・合成loaderは実API疎通を証明しません。`tests/preview/`の部品ページはローカル・CI専用で、Preview・本番buildには含めません。追加・変更機能のロジック、操作、失敗/retry、遅延応答を検証し、Chart.jsの描画はjsdomのstubと実Chromeを区別します。[a11yの手動確認](./ACCESSIBILITY.md)も行います。
+Chromeテストは専用serverを自動起動・停止します。ローカルでは既存Chromeを使い、追加browser downloadは不要です。ポート・trace・reporterは[Playwright設定](../playwright.config.ts)で管理します。HTMLレポートは`pnpm test:e2e --reporter=list,html`の後、`pnpm exec playwright show-report`で開きます。[a11y手動確認](./ACCESSIBILITY.md)も行ってください。
 
 ## ローカルpreview
 
+`pnpm build`の後に`pnpm preview`を実行し、表示された127.0.0.1のURLを開きます。ビルド済みWorkerと画面をworkerdで実行します。配備構成の確認は次のdry-runを使います。
+
 ```sh
-pnpm build
-pnpm preview
+pnpm exec wrangler deploy --dry-run --config dist/population_viewer/wrangler.json
 ```
 
-ビルド済みWorkerとStatic Assetsをworkerdで実行します。停止はCtrl+C、ポート競合時は`pnpm preview --port 4175 --strictPort`。SPAの深いURLもindex.htmlへfallbackし、`/api/*`はWorkerが処理します。ローカルpreview、PRの静的UI Preview、本番deployの違いは[CI/CD](./CI_CD.md)を参照してください。
+部品fixtureは開発serverの`/tests/preview/対象.html`で開きます（例：`/tests/preview/app-integration.html`）。一覧は[tests/preview](../tests/preview/README.md)。合成データ・routeモックは実API成功を証明しません。
+
+静的UI Previewのbuild確認は`node .github/scripts/build-review.mjs`、閲覧は次を実行して`http://127.0.0.1:4173/`を開きます。部品fixtureは公開対象外です。[CI/CD](./CI_CD.md)を参照してください。
+
+```sh
+python3 -m http.server 4173 --bind 127.0.0.1 --directory dist-review
+```

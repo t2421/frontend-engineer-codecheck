@@ -1,10 +1,10 @@
 # 都道府県別人口推移ビューア
 
-指定APIの都道府県・人口データを、県と人口区分を選んで比較するVue 3 / TypeScriptのSPAです。Chart.jsで折れ線を描画し、Cloudflare Workersで画面配信とAPI中継を行います。
+指定APIの人口データを、都道府県と人口区分を選んで比較するVue / TypeScriptのSPAです。Chart.jsで描画し、Cloudflare Workersで画面配信とAPI中継を行います。
 
-## 開発を始める
+## 開発の入口
 
-Node **24.16.0**、pnpm **12.8.1**、Git、Google Chromeを用意します。[依存管理](./docs/DEPENDENCY_SECURITY.md)を確認してから実行してください。
+Node **24.16.0**、pnpm **12.8.1**、Google Chromeを用意します。[依存管理](./docs/DEPENDENCY_SECURITY.md)を確認して実行してください。
 
 ```sh
 nvm use
@@ -12,23 +12,21 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-表示されたlocalhost URLを開きます。実API接続にはローカルの`YUMEMI_API_KEY`設定が必要です。設定方法、テスト、buildは[開発手順](./docs/DEVELOPMENT.md)を参照してください。
+表示された`http://127.0.0.1:ポート番号`を開きます。実APIにはローカルの`YUMEMI_API_KEY`が必要です。設定・テスト・previewは[開発手順](./docs/DEVELOPMENT.md)を参照してください。
 
-## ドキュメント
+## 文書
 
-| 文書                                               | 内容                                           |
-| -------------------------------------------------- | ---------------------------------------------- |
-| [PRD](./docs/PRD.md)                               | 機能の受入条件、課題の制約・提出要件           |
-| [設計](./docs/DESIGN.md)                           | 採用技術、役割、状態・取得・グラフ、ライセンス |
-| [デザインリンク](./docs/DESIGN_LINKS.md)           | Figmaの画面・状態・部品                        |
-| [デザイントークン](./docs/DESIGN_TOKENS.md)        | 共通CSS・素材・フォント                        |
-| [API仕様](./docs/API_PROXY.md)                     | 同一オリジンGET、検証、エラー契約              |
-| [開発手順](./docs/DEVELOPMENT.md)                  | 起動・テスト・品質チェック・ローカルpreview    |
-| [CI/CD](./docs/CI_CD.md)                           | 全workflowの役割、PR Preview、本番deploy、診断 |
-| [Cloudflare環境](./docs/CLOUDFLARE_ENVIRONMENT.md) | 設定名・Secrets・API制限                       |
-| [依存管理](./docs/DEPENDENCY_SECURITY.md)          | 固定導入、安全設定、監査例外の管理             |
-| [アクセシビリティ](./docs/ACCESSIBILITY.md)        | 自動検査と手動確認の品質基準                   |
+| 知りたいこと                         | 参照先                                      |
+| ------------------------------------ | ------------------------------------------- |
+| 機能・課題の提出要件                 | [仕様](./docs/PRD.md)                       |
+| 状態管理・グラフ・Figma・ライセンス  | [設計](./docs/DESIGN.md)                    |
+| 共通CSSの使い方                      | [デザイントークン](./docs/DESIGN_TOKENS.md) |
+| API契約・失敗・診断                  | [API](./docs/API_PROXY.md)                  |
+| 起動・テスト・ローカル閲覧           | [開発](./docs/DEVELOPMENT.md)               |
+| workflow・Preview・本番公開・Secrets | [CI/CD](./docs/CI_CD.md)                    |
+| 依存更新・監査例外                   | [依存管理](./docs/DEPENDENCY_SECURITY.md)   |
+| 自動検査と手動確認                   | [アクセシビリティ](./docs/ACCESSIBILITY.md) |
 
-## リリース・提出前の確認
+配置は`src/pages/`にページ、`src/components/<業務名>/`に業務部品・composable・取得処理、`src/components/shared/`に業務判断を持たない汎用UI、`src/styles/`に共通スタイルを置きます。
 
-モックや合成データのテスト成功と実API疎通は区別します。実データの47県・4区分の値、失敗からの再試行、本番のRate Limit、スクリーンリーダー、操作時INPを確認してから完了と判断してください。公開状態や一時的な障害の経過はIssue・PRで管理します。
+モックの成功と実API疎通、自動a11y検査と手動確認、静的UIの性能計測と操作時INPを区別します。検証結果や障害の経過はIssue・PRで管理します。

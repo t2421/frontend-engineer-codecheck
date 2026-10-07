@@ -5,11 +5,6 @@ playwright-report/
 test-results/
 .vitest/
 coverage/
-# Reviewed documents belong to separate work.
-docs/ADR.md
-docs/DESIGN.md
-docs/DESIGN_LINKS.md
-docs/PRD.md
 .wrangler/
 
 .lighthouseci/
