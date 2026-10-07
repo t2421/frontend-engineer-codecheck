@@ -7,6 +7,9 @@ export default defineConfig([
   {
     ignores: [
       'dist/**',
+      'dist-review/**',
+      '.lighthouseci/**',
+      'performance-results/**',
       '.wrangler/**',
       'node_modules/**',
       'test-results/**',
