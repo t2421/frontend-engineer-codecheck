@@ -17,11 +17,24 @@ type UpstreamFailureCode =
   | 'UPSTREAM_DOM_EXCEPTION'
   | 'UPSTREAM_EXCEPTION'
 
-function logUpstreamFailure(status: number, code: UpstreamFailureCode): void {
-  // 数値statusと内部の固定codeだけを出力し、例外オブジェクトは渡さない。
+interface UpstreamDiagnostic {
+  status: number
+  httpFailed: boolean
+  responseType: 'JSON' | 'HTML' | 'OTHER' | 'MISSING'
+  challenge: boolean
+}
+
+function logUpstreamFailure(
+  diagnostic: UpstreamDiagnostic,
+  code: UpstreamFailureCode,
+): void {
+  // 固定分類・数値・booleanだけを出力し、生のヘッダーや例外は渡さない。
+  const { status, responseType, challenge } = diagnostic
   const safeStatus =
     Number.isInteger(status) && status >= 100 && status <= 599 ? status : 0
-  console.error(JSON.stringify({ status: safeStatus, code }))
+  console.error(
+    JSON.stringify({ status: safeStatus, code, responseType, challenge }),
+  )
 }
 
 function errorResponse(
@@ -39,7 +52,7 @@ async function fetchUpstreamJson(
   upstreamPath: string,
   apiKey: string,
   signal: AbortSignal,
-  diagnostic: { status: number; httpFailed: boolean },
+  diagnostic: UpstreamDiagnostic,
 ): Promise<unknown> {
   // 固定originと検証済みのパス・queryだけを使用し、認証情報やredirectを転送しない。
   const response = await fetch(`${upstreamOrigin}${upstreamPath}`, {
@@ -49,6 +62,20 @@ async function fetchUpstreamJson(
     signal,
   })
   diagnostic.status = response.status
+  const mediaType = response.headers
+    .get('Content-Type')
+    ?.split(';', 1)[0]
+    ?.trim()
+    .toLowerCase()
+  diagnostic.responseType = !mediaType
+    ? 'MISSING'
+    : mediaType === 'application/json' ||
+        /^application\/[a-z0-9!#$&^_.+-]+\+json$/.test(mediaType)
+      ? 'JSON'
+      : mediaType === 'text/html'
+        ? 'HTML'
+        : 'OTHER'
+  diagnostic.challenge = response.headers.get('cf-mitigated') === 'challenge'
   if (!response.ok) {
     diagnostic.httpFailed = true
     await response.body?.cancel()
@@ -62,7 +89,12 @@ async function proxyApiRequest(
   apiKey: string,
 ): Promise<Response> {
   const controller = new AbortController()
-  const diagnostic = { status: 0, httpFailed: false }
+  const diagnostic: UpstreamDiagnostic = {
+    status: 0,
+    httpFailed: false,
+    responseType: 'MISSING',
+    challenge: false,
+  }
   let timedOut = false
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -79,7 +111,7 @@ async function proxyApiRequest(
       timeoutPromise,
     ])
     if (!isSafeUpstreamResponse(upstreamData, apiKey)) {
-      logUpstreamFailure(diagnostic.status, 'UPSTREAM_RESPONSE_REJECTED')
+      logUpstreamFailure(diagnostic, 'UPSTREAM_RESPONSE_REJECTED')
       return errorResponse(502, 'UPSTREAM_ERROR')
     }
     return Response.json(upstreamData, {
@@ -98,7 +130,7 @@ async function proxyApiRequest(
             : error instanceof DOMException
               ? 'UPSTREAM_DOM_EXCEPTION'
               : 'UPSTREAM_EXCEPTION'
-    logUpstreamFailure(diagnostic.status, code)
+    logUpstreamFailure(diagnostic, code)
     return timedOut
       ? errorResponse(504, 'UPSTREAM_TIMEOUT')
       : errorResponse(502, 'UPSTREAM_ERROR')

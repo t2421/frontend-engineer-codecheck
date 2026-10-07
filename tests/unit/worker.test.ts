@@ -52,12 +52,17 @@ beforeEach(() => {
   vi.stubGlobal('fetch', upstream)
 })
 
-function expectDiagnostic(status: number, code: string) {
+function expectDiagnostic(
+  status: number,
+  code: string,
+  responseType = status === 0 ? 'MISSING' : 'OTHER',
+  challenge = false,
+) {
   expect(diagnosticLog).toHaveBeenCalledTimes(1)
   const call = diagnosticLog.mock.calls[0]!
   expect(call).toHaveLength(1)
   expect(typeof call[0]).toBe('string')
-  expect(JSON.parse(call[0])).toEqual({ status, code })
+  expect(JSON.parse(call[0])).toEqual({ status, code, responseType, challenge })
   expect(call[0]).not.toContain(secret)
   expect(call[0]).not.toContain('https://')
   expect(call[0]).not.toContain('X-API-KEY')
@@ -205,17 +210,73 @@ test.each([302, 400, 403, 404, 429, 500])(
 )
 
 test.each([
-  [() => Promise.reject(new Error(secret)), 0, 'UPSTREAM_EXCEPTION'],
-  [() => Promise.resolve(new Response(secret)), 200, 'UPSTREAM_JSON_ERROR'],
+  ['application/json', 'JSON'],
+  ['Application/JSON; charset=utf-8', 'JSON'],
+  ['application/problem+json', 'JSON'],
+  ['text/html; charset=utf-8', 'HTML'],
+  ['TEXT/HTML', 'HTML'],
+  ['application/json-attacker', 'OTHER'],
+  [`text/html-${secret}`, 'OTHER'],
+  [`application/${secret}+json`, 'JSON'],
+  [secret, 'OTHER'],
+  [null, 'MISSING'],
+])(
+  'classifies upstream media type without logging its raw value',
+  async (contentType, responseType) => {
+    const headers = new Headers({
+      'X-API-KEY': secret,
+      Location: 'https://private.test',
+    })
+    if (contentType !== null) headers.set('Content-Type', contentType)
+    const body = new ReadableStream({ start() {} })
+    const upstreamResponse = new Response(body, { status: 403, headers })
+    const cancel = vi.spyOn(upstreamResponse.body!, 'cancel')
+    upstream.mockResolvedValue(upstreamResponse)
+    const response = await worker.fetch(request(), env)
+    expect(response.status).toBe(502)
+    expect(await response.json()).toEqual({ error: 'UPSTREAM_ERROR' })
+    expectDiagnostic(403, 'UPSTREAM_HTTP_ERROR', responseType)
+    expect(cancel).toHaveBeenCalledTimes(1)
+  },
+)
+
+test.each([
+  ['challenge', true],
+  ['Challenge', false],
+  [`challenge-${secret}`, false],
+  [secret, false],
+  [null, false],
+])(
+  'detects only the exact challenge marker without logging header values',
+  async (marker, challenge) => {
+    const headers = new Headers({ 'Content-Type': 'text/html' })
+    if (marker !== null) headers.set('cf-mitigated', marker)
+    upstream.mockResolvedValue(new Response(secret, { status: 403, headers }))
+    const response = await worker.fetch(request(), env)
+    expect(response.status).toBe(502)
+    expectDiagnostic(403, 'UPSTREAM_HTTP_ERROR', 'HTML', challenge)
+  },
+)
+
+test.each([
+  [() => Promise.reject(new Error(secret)), 0, 'UPSTREAM_EXCEPTION', 'MISSING'],
+  [
+    () => Promise.resolve(new Response(secret)),
+    200,
+    'UPSTREAM_JSON_ERROR',
+    'OTHER',
+  ],
   [
     () => Promise.resolve(Response.json({ message: secret, result: null })),
     200,
     'UPSTREAM_RESPONSE_REJECTED',
+    'JSON',
   ],
   [
     () => Promise.resolve(Response.json({ message: null, result: { secret } })),
     200,
     'UPSTREAM_RESPONSE_REJECTED',
+    'JSON',
   ],
   [
     () =>
@@ -229,17 +290,18 @@ test.each([
       ),
     200,
     'UPSTREAM_RESPONSE_REJECTED',
+    'OTHER',
   ],
 ])(
   'sanitizes network, JSON, API envelope and reflected Secret failures',
-  async (implementation, status, code) => {
+  async (implementation, status, code, responseType) => {
     const warnLog = vi.spyOn(console, 'warn')
     const log = vi.spyOn(console, 'log')
     upstream.mockImplementation(implementation)
     const response = await worker.fetch(request(), env)
     expect(response.status).toBe(502)
     expect(await response.text()).not.toContain(secret)
-    expectDiagnostic(status, code)
+    expectDiagnostic(status, code, responseType)
     expect(warnLog).not.toHaveBeenCalled()
     expect(log).not.toHaveBeenCalled()
   },
@@ -261,7 +323,11 @@ for (const phase of ['headers', 'body']) {
     expect(await response.json()).toEqual({ error: 'UPSTREAM_TIMEOUT' })
     expect(upstream.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
     expect(vi.getTimerCount()).toBe(0)
-    expectDiagnostic(phase === 'headers' ? 0 : 200, 'UPSTREAM_TIMEOUT')
+    expectDiagnostic(
+      phase === 'headers' ? 0 : 200,
+      'UPSTREAM_TIMEOUT',
+      'MISSING',
+    )
   })
 }
 
@@ -276,7 +342,7 @@ test('rejects reflected Secrets containing JSON special characters', async () =>
   })
   expect(response.status).toBe(502)
   expect(await response.json()).toEqual({ error: 'UPSTREAM_ERROR' })
-  expectDiagnostic(200, 'UPSTREAM_RESPONSE_REJECTED')
+  expectDiagnostic(200, 'UPSTREAM_RESPONSE_REJECTED', 'JSON')
   expect(diagnosticLog.mock.calls.flat().join()).not.toContain(specialKey)
 })
 
@@ -337,7 +403,7 @@ test('a body-read failure retains its received status without printing its excep
   )
   const response = await worker.fetch(request(), env)
   expect(response.status).toBe(502)
-  expectDiagnostic(201, 'UPSTREAM_TYPE_ERROR')
+  expectDiagnostic(201, 'UPSTREAM_TYPE_ERROR', 'MISSING')
 })
 
 test('rate rejection precedes method, query and Secret validation', async () => {
