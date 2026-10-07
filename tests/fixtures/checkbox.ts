@@ -9,6 +9,11 @@ createApp(
       const changes = ref(0)
       return () =>
         h('main', [
+          h('h1', '共通チェックボックスの確認'),
+          h(
+            'p',
+            'ラベルクリック、TabとSpaceで操作できます。無効な項目は変更されません。',
+          ),
           h(Checkbox, {
             label: '任意の項目',
             modelValue: selected.value,
@@ -25,7 +30,10 @@ createApp(
             modelValue: true,
             disabled: true,
           }),
-          h('output', { 'aria-label': '変更回数' }, String(changes.value)),
+          h('p', [
+            '変更回数: ',
+            h('output', { 'aria-label': '変更回数' }, String(changes.value)),
+          ]),
           h('button', '次の操作'),
         ])
     },

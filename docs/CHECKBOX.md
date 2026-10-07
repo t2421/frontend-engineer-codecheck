@@ -39,3 +39,9 @@ FigmaのIcon / Check（4:2 / 4:3）は `src/shared/ui/assets/check.svg` に取�
 キャプチャは `docs/screenshots/issue-6/` に保存。PC・タブレット・スマートフォンの未選択／無効と、選択済みフォーカス状態を確認できる。
 
 2026-10-07、ユーザーからcommit・push・キャプチャ付きmain向けdraft PR作成の承認を取得。merge・本番deployは対象外。
+
+## 操作可能なPRプレビュー
+
+review buildの規約に合わせてHTMLを `tests/e2e/fixtures/checkbox.html` へ移動し、既存 `tests/fixtures/checkbox.ts` を再利用する。`.github/scripts/build-review.mjs` がこのHTMLを静的出力へ含め、reviewトップのリンクから開ける。ローカルと公開プレビューのパスは `/tests/e2e/fixtures/checkbox.html`。通常のproduction buildのentryやAppには追加しない。
+
+追加確認: review静的出力のトップリンクと部品ページをChromeで開き、1440 / 390pxで未選択・クリック選択・Space切替・Tab移動・disabledの通知抑止を検証。768pxも目視確認し、キャプチャを更新した。check、Vitest 22件、Chrome E2E 9件、通常buildとreview buildが成功。

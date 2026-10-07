@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/tests/fixtures/checkbox.html')
+  await page.goto('/tests/e2e/fixtures/checkbox.html')
 })
 
 test('TabとSpaceで選択・解除し、無効項目をTab順序から除外する', async ({
