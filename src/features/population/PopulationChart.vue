@@ -19,11 +19,9 @@ import {
   createPopulationChartData,
   seriesStyle,
   mobileYearTicks,
+  seriesColorTokens,
 } from './populationChartData'
 import StatusMessage from '../../shared/ui/StatusMessage.vue'
-import series1 from './assets/series-1.svg'
-import series2 from './assets/series-2.svg'
-import series3 from './assets/series-3.svg'
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, Tooltip)
 const props = defineProps<{
@@ -38,8 +36,6 @@ const categoryLabel = computed(
 const legends = computed(() =>
   props.series.map((s) => ({ ...s, style: seriesStyle(s.prefCode) })),
 )
-const legendAssets = [series1, series2, series3]
-const colorTokens = ['--color-series-1', '--color-series-2', '--color-series-3']
 const formatPeople = (value: number) => `${value.toLocaleString('ja-JP')}人`
 let chart: Chart<'line', Point[]> | undefined
 let mounted = false
@@ -54,7 +50,10 @@ function syncChart() {
   }
   const css = globalThis.getComputedStyle(canvas.value)
   const token = (name: string) => css.getPropertyValue(name).trim()
-  const data = createPopulationChartData(props.series, colorTokens.map(token))
+  const data = createPopulationChartData(
+    props.series,
+    seriesColorTokens.map(token),
+  )
   if (chart) {
     chart.data = data
     chart.update('none')
@@ -149,20 +148,14 @@ onBeforeUnmount(() => {
   <figure v-else class="population-chart">
     <ul class="chart-legend" aria-label="都道府県の凡例">
       <li v-for="entry in legends" :key="entry.prefCode">
-        <img
-          v-if="entry.style.assetIndex !== undefined"
-          :src="legendAssets[entry.style.assetIndex]"
-          width="24"
-          height="16"
-          alt=""
-        />
         <svg
-          v-else
           width="24"
           height="16"
           viewBox="0 0 24 16"
           aria-hidden="true"
-          :style="{ color: `var(${colorTokens[entry.style.colorIndex]})` }"
+          :style="{
+            color: `var(${seriesColorTokens[entry.style.colorIndex]})`,
+          }"
         >
           <line
             x1="0"
@@ -171,33 +164,8 @@ onBeforeUnmount(() => {
             y2="8"
             stroke="currentColor"
             stroke-width="2"
-            :stroke-dasharray="entry.style.borderDash.join(' ')"
           />
-          <circle
-            v-if="entry.style.pointStyle === 'circle'"
-            cx="12"
-            cy="8"
-            r="3"
-            fill="currentColor"
-          />
-          <polygon
-            v-else-if="entry.style.pointStyle === 'triangle'"
-            points="12,4 16,11 8,11"
-            fill="currentColor"
-          />
-          <rect
-            v-else
-            x="9"
-            y="5"
-            width="6"
-            height="6"
-            fill="currentColor"
-            :transform="
-              entry.style.pointStyle === 'rectRot'
-                ? 'rotate(45 12 8)'
-                : undefined
-            "
-          />
+          <circle cx="12" cy="8" r="3" fill="currentColor" />
         </svg>
         {{ entry.prefName }}
       </li>
@@ -269,7 +237,6 @@ onBeforeUnmount(() => {
   min-height: 24px;
 }
 
-.chart-legend img,
 .chart-legend svg {
   flex-shrink: 0;
 }

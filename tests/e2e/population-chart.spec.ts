@@ -221,6 +221,34 @@ test('47県の凡例・表とリサイズで重なり/横溢れ/instance重複�
   await expect(page.getByLabel('都道府県の凡例').locator('li')).toHaveCount(47)
   const initial = await snapshot(page)
   expect(initial.datasets).toHaveLength(47)
+  const datasets = initial.datasets!
+  expect(new Set(datasets.map((d) => d.borderColor)).size).toBe(47)
+  for (const dataset of datasets) {
+    expect(dataset.borderDash).toEqual([])
+    expect(dataset.pointStyle).toBe('circle')
+    expect(dataset.tension).toBe(0)
+  }
+  const legendColors = await page
+    .locator('.chart-legend svg')
+    .evaluateAll((icons) => icons.map((icon) => getComputedStyle(icon).color))
+  const rgb = (hex: string) =>
+    `rgb(${[1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16)).join(', ')})`
+  expect(legendColors).toEqual(
+    datasets.map((d) => rgb(d.borderColor as string)),
+  )
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1600 })
+    await page.locator('.population').screenshot({
+      path: `test-results/population-chart-solid-47-${width}.png`,
+    })
+  }
+  await page.getByRole('checkbox', { name: '東京都', exact: true }).uncheck()
+  expect((await snapshot(page)).datasets).toEqual(
+    datasets.filter((d) => d.label !== '東京都'),
+  )
+  await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
+  expect((await snapshot(page)).datasets).toEqual(datasets)
+
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1100 })
     await expect
@@ -264,14 +292,12 @@ test('47県の凡例・表とリサイズで重なり/横溢れ/instance重複�
     await page
       .locator('.population')
       .screenshot({ path: `test-results/population-chart-panel-${width}.png` })
-    const icons = page.locator('.chart-legend img')
+    const icons = page.locator('.chart-legend svg')
     await expect(icons).toHaveCount(3)
     expect(
-      await icons.evaluateAll((images) =>
-        images.every(
+      await icons.evaluateAll((icons) =>
+        icons.every(
           (i) =>
-            (i as HTMLImageElement).complete &&
-            (i as HTMLImageElement).naturalWidth === 24 &&
             i.getBoundingClientRect().width === 24 &&
             i.getBoundingClientRect().height === 16,
         ),

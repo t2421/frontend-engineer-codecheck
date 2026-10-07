@@ -79,7 +79,7 @@ test('異なる年の県も数値座標で正しい年・人数を保持し入�
   expect(series).toEqual(original)
   expect(createPopulationChartData([], []).datasets).toEqual([])
 })
-test('47県で色・線種・マーカーの組み合わせが固有かつ選択順や解除によらず固定', () => {
+test('47県で色の割当が固有かつ選択順や解除によらず固定', () => {
   const styles = Array.from({ length: 47 }, (_, i) => seriesStyle(i + 1))
   expect(new Set(styles.map((s) => JSON.stringify(s))).size).toBe(47)
   const forward = createPopulationChartData(series, [
@@ -97,4 +97,26 @@ test('47県で色・線種・マーカーの組み合わせが固有かつ選択
     createPopulationChartData(series.slice(1), ['blue', 'green', 'orange'])
       .datasets[0],
   ).toEqual(forward[1])
+})
+
+test('47県は固有の固定色、実線、直線補間で描き選択順で色が変わらない', () => {
+  const colors = Array.from({ length: 47 }, (_, i) => `color-${i}`)
+  const input = Array.from({ length: 47 }, (_, i) => ({
+    ...series[0]!,
+    prefCode: i + 1,
+    prefName: `県${i + 1}`,
+  }))
+  const forward = createPopulationChartData(input, colors).datasets
+  expect(new Set(forward.map((d) => d.borderColor)).size).toBe(47)
+  for (const dataset of forward) {
+    expect(dataset.borderDash).toEqual([])
+    expect(dataset.pointStyle).toBe('circle')
+    expect(dataset.tension).toBe(0)
+  }
+  expect(
+    createPopulationChartData([...input].reverse(), colors).datasets,
+  ).toEqual([...forward].reverse())
+  expect(
+    createPopulationChartData(input.slice(10, 11), colors).datasets[0],
+  ).toEqual(forward[10])
 })

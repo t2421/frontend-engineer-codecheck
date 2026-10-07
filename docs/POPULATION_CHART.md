@@ -7,7 +7,7 @@
 - `populationChartData.ts` が年・人数を数値の `{ x, y }` に写し、入力を変更しない新しい Chart.js データを作ります。県ごとに年が異なっても配列 index で年を取り違えません。
 - Chart.js 単体の必要な controller・element・linear scale・tooltip だけを登録します。初回は生成、変更は同じ instance にデータを置き換えて `update('none')`、全解除・unmount は `destroy()`。Vue の post-flush watcher で canvas の再表示後に生成します。
 - 横軸は数値年、縦軸の元データは人数。表示目盛りだけ万人に変換し、tooltip と表は桁区切り人数です。横軸はデータ範囲に合わせ、狭い plot は目盛り数を減らします。animation は無効です。
-- 県コードごとに系列色・線種・マーカーを固定。東京都・大阪府・北海道は Figma の3種類に合わせ、残りも既存の3色と4線種・4マーカーの組み合わせで47県を区別します。選択順・解除で割当は変わりません。
+- 追加依頼に合わせ、全系列を実線・直線補間（tension=0）・丸いデータ点に統一。県コードごとに47個の固有の色トークンを固定し、選択順・解除で割当は変わりません。東京都・大阪府・北海道は既存の3色を再利用します。
 - 空の入力では共通 StatusMessage の PRD 文言を表示。Panel 接続時の loading/error/retry は既存部品が引き続き担当します。
 
 ## Figma と画面比較
@@ -21,13 +21,13 @@
 | Mobile | [グラフ領域](./screenshots/issue-26/figma-mobile-reference.png)  | [390px グラフ領域](./screenshots/issue-26/population-chart-panel-390.png) / [全体](./screenshots/issue-26/population-chart-390.png)    |
 | 最小幅 | 390pxを基にリフロー確認                                          | [320px グラフ領域](./screenshots/issue-26/population-chart-panel-320.png) / [全体](./screenshots/issue-26/population-chart-320.png)    |
 
-plot は PC/tablet 344px・mobile 266px、間隔20px、既存の文字・余白・系列色トークンを再利用します。凡例を折り返し、参照3県の装飾SVGをローカル保存し、実ブラウザで各24×16px・非空・読込成功を確認しました。データ依存の線は Chart.js で描画します。Figma の仮の折れ線 SVG はアプリの素材にしません。
+plot は PC/tablet 344px・mobile 266px、間隔20px、既存の文字・余白・系列色トークンを再利用します。凡例を折り返し、24×16pxのSVGを系列と同じトークン色の実線・丸点で描画します。追加依頼に合わせ、Figma参照の破線・点線・マーカー形状による識別を変更しました。上記比較画像は実線・固定色への追加変更後です。Figmaとの相違はユーザーの追加依頼によるものです。データ依存の線は Chart.js で描画します。Figma の仮の折れ線 SVG はアプリの素材にしません。
 
 PC/tabletの目盛りと縦軸は選択値に応じた Chart.js の自動計算です。スマホ（既存viewport breakpointの640px未満）の横軸は1960・1980・2000・2020年のうち、入力データの年の範囲内だけを表示します。リサイズで表示方法を切り替え、データ点・年の範囲・人数・tooltipは変更しません。範囲内に指定年がなくても偽の点を追加しません。Figma のサンプル固定目盛り・注記をそのまま固定せず、現在区分の説明と開閉できる人口表を追加しています。既存のフォント配信方針（Noto Sans JP 未導入時は端末 sans-serif）を維持します。画面全体の県選択エリアは検証専用で、Figma の選択 UI 実装を示しません。
 
 ## アクセシビリティ
 
-Canvas は role=img と現在区分・県名のラベル、軸と代替表の説明を持ちます。画面側の県名凡例と線種・マーカーを併用。ネイティブ details/summary から、各県の全ての年・人口数を表で確認でき、マウス hover に依存しません。47県でも表を県別に分け、横に47列を並べません。更新時の追加 live 通知・focus 移動は行いません。
+Canvas は role=img と現在区分・県名のラベル、軸と代替表の説明を持ちます。画面側の県名凡例・人数tooltip・代替表を併用。47色があらゆる色覚や利用者に対して識別可能であるとは保証しません。ネイティブ details/summary から、各県の全ての年・人口数を表で確認でき、マウス hover に依存しません。47県でも表を県別に分け、横に47列を並べません。更新時の追加 live 通知・focus 移動は行いません。
 
 PR #50 を含む最新mainを取り込み、`tests/e2e/accessibility.spec.ts`と共通`checkAccessibility`で4幅（1440/768/390/320）×5状態（未選択・3県選択・老年人口・表展開・全解除）を継続検査します。axe 4.13.0 / WCAG 2A・2AA・2.1A・2.1AA・2.2AA、除外なし。判定前に全結果のJSONを保存し、CIのHTMLレポートへ添付します。初回のローカル20検査も violations=0、incomplete=0。[初回集計](./screenshots/issue-26/accessibility-summary.json)。
 
@@ -40,8 +40,8 @@ Mac / Node 24.16.0 / native pnpm 12.8.1 / installed Google Chrome。TDD で描�
 | チェック                    | 結果                                                                                                                                   |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm check`                | ESLint・Stylelint・Prettier・vue-tsc 成功                                                                                              |
-| `pnpm test`                 | 12ファイル・56件成功（新規4件）                                                                                                        |
-| `pnpm test:e2e --workers=2` | 24件成功（新規5件）                                                                                                                    |
+| `pnpm test`                 | 単体・部品60件、レビュー関連13件成功                                                                                                   |
+| `pnpm test:e2e --workers=2` | 61件成功（共通axeのグラフ20状態を含む）                                                                                                |
 | 描画・更新・破棄            | 4区分、解除、全解除、再表示3回、連続更新、unmount、Chart.js registry の instance 数・同一 id と破棄を確認                              |
 | 実ブラウザ                  | 入力年・人数、線の有限座標、canvas の非空画素、人数 tooltip、47県凡例、各幅への resize、表のキーボード操作、検証fixtureの API 通信ゼロ |
 | build                       | 通常 Worker/client と review fixture build 成功                                                                                        |
@@ -63,3 +63,11 @@ Mac / Node 24.16.0 / native pnpm 12.8.1 / installed Google Chrome。TDD で描�
 2026-10-07の追加依頼で、横軸の目盛りを上記4年に変更しました。1年/5年刻みの全点保持、指定年が一部/全部範囲外の入力、非目盛り年のtooltip、639/640px境界・320/390/768/1440px間のresize、同一instanceを確認。単体・部品59件、Chrome26件、check・buildが成功しています。スマホの4キャプチャを更新し、PC/tabletのキャプチャに変更はありません。PR・Previewへの反映結果はPR本文を参照してください。
 
 [指定APIの公式仕様](https://github.com/yumemi-inc/frontend-engineer-codecheck/blob/main/docs/api.md)は年単位のデータとして説明しますが、固定10年/5年刻みは規定せず、例は1960年の1点です。既存review fixtureの10年刻みはFigmaに合わせた合成データで、実APIの刻みを保証するものではありません。今回も実APIは呼ばず、取得済みデータの`year`をそのまま保持する描画を検証しています。`?years=five-year`・`?years=annual`・`?years=partial`・`?years=gap`で年の刻み・範囲が異なる合成fixtureを確認できます。
+
+## 実線・固定色への追加変更
+
+2026-10-07の追加依頼により、線種・マーカー形状による識別をやめ、実線と県ごとの固定色を採用しました。Figmaの3色を保持し、残る44色は白背景に対するコントラスト3.2以上の候補からCIELAB距離を広げるよう選び、CSSトークンへ明示しています。RGB値は全47県で固有、白背景との最小コントラストは3.270です。これは色同士の判別やあらゆる色覚への保証ではありません。[固定割当とコントラスト記録](./screenshots/issue-26/solid-colors-summary.json)。県名・tooltip・全データの表を維持します。
+
+[PC 3県](./screenshots/issue-26/solid-colors-panel-1440.png) / [tablet 3県](./screenshots/issue-26/solid-colors-panel-768.png) / [mobile 3県](./screenshots/issue-26/solid-colors-panel-390.png) / [320px 3県](./screenshots/issue-26/solid-colors-panel-320.png) / [PC 47県](./screenshots/issue-26/solid-colors-47-1440.png) / [mobile 47県](./screenshots/issue-26/solid-colors-47-390.png)。PR・Previewの反映結果と対象SHAはPR本文を参照してください。
+
+TDDで47色の固有性検査が旧実装の3色に対して失敗することを確認してから変更しました。全系列の実線・tension=0、選択順反転・個別解除／再選択で色固定、実canvasと凡例の色一致、既存の全点保持・tooltip・区分変更・生成更新破棄を確認しています。check・60件の単体/部品・13件のレビュー関連テスト・61件のChrome・buildが成功しました。

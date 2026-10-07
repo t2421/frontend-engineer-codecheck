@@ -8,8 +8,7 @@ export function mobileYearTicks(series: readonly PopulationSeries[]) {
   return [1960, 1980, 2000, 2020].filter((year) => year >= min && year <= max)
 }
 
-// The three reference prefectures retain Figma's solid/circle,
-// dashed/square and dotted/triangle. All others have a stable combination.
+// Assign one fixed color token per prefecture, independent of selection order.
 const prefectureOrder = [
   13,
   27,
@@ -18,17 +17,15 @@ const prefectureOrder = [
     (code) => ![13, 27, 1].includes(code),
   ),
 ]
-const dashes = [[], [6, 4], [2, 4], [10, 4, 2, 4]]
-const markers = ['circle', 'rect', 'triangle', 'rectRot'] as const
+export const seriesColorTokens = Array.from(
+  { length: 47 },
+  (_, i) => `--color-series-${i + 1}`,
+)
 export function seriesStyle(prefCode: number) {
-  const index = prefectureOrder.indexOf(prefCode)
-  const colorIndex = index % 3
-  const variant = Math.floor(index / 3) + colorIndex
   return {
-    colorIndex,
-    borderDash: [...dashes[variant % 4]!],
-    pointStyle: markers[(Math.floor(variant / 4) + colorIndex) % 4]!,
-    assetIndex: index < 3 ? index : undefined,
+    colorIndex: prefectureOrder.indexOf(prefCode),
+    borderDash: [],
+    pointStyle: 'circle' as const,
   }
 }
 export function createPopulationChartData(
