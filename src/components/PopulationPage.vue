@@ -30,15 +30,17 @@ import populationMark from '../assets/population-mark.svg'
       class="content-area prefectures"
       aria-labelledby="prefectures-title"
     >
-      <div class="prefectures-heading">
-        <h2 id="prefectures-title" class="section-title">都道府県</h2>
-        <slot name="prefecture-actions" />
-      </div>
-      <p class="prefectures-description">
-        比較したい都道府県を選択（複数選択可）
-      </p>
-      <slot name="prefectures">
-        <div class="prefectures-space" aria-hidden="true" />
+      <slot name="prefecture-content">
+        <div class="prefectures-heading">
+          <h2 id="prefectures-title" class="section-title">都道府県</h2>
+          <slot name="prefecture-actions" />
+        </div>
+        <p class="prefectures-description">
+          比較したい都道府県を選択（複数選択可）
+        </p>
+        <slot name="prefectures">
+          <div class="prefectures-space" aria-hidden="true" />
+        </slot>
       </slot>
     </section>
 

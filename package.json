@@ -23,6 +23,7 @@
     "test:review": "node --test .github/scripts/*.test.mjs"
   },
   "dependencies": {
+    "chart.js": "4.5.1",
     "vue": "3.5.43"
   },
   "devDependencies": {

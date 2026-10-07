@@ -2,6 +2,7 @@
 import SingleSelectGroup from '../../shared/ui/SingleSelectGroup.vue'
 import Button from '../../shared/ui/Button.vue'
 import StatusMessage from '../../shared/ui/StatusMessage.vue'
+import PopulationChart from './PopulationChart.vue'
 import {
   populationCategories,
   type SelectedPrefecture,
@@ -64,7 +65,9 @@ const statusCopy = {
       :series="series"
       :category="category"
       :status="status"
-    />
+    >
+      <PopulationChart :series="series" :category="category" />
+    </slot>
   </div>
 </template>
 

@@ -1,0 +1,99 @@
+import { expect, test } from '@playwright/test'
+const result = [
+  { prefCode: 13, prefName: 'API東京都' },
+  { prefCode: 1, prefName: 'API北海道' },
+]
+test('通常画面: API順の動的一覧、キーボード・連続選択・解除（routeモック）', async ({
+  page,
+}) => {
+  let requests = 0
+  await page.route('**/api/v1/prefectures', async (route) => {
+    requests++
+    expect(route.request().method()).toBe('GET')
+    await route.fulfill({ json: { message: null, result } })
+  })
+  await page.goto('/')
+  const inputs = page.getByRole('checkbox')
+  await expect(inputs).toHaveCount(2)
+  await expect(inputs.nth(0)).toHaveAccessibleName('API東京都')
+  await inputs.nth(0).focus()
+  await page.keyboard.press('Space')
+  await expect(inputs.nth(0)).toBeChecked()
+  await page.keyboard.press('Tab')
+  await expect(inputs.nth(1)).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(inputs.nth(1)).toBeChecked()
+  await inputs.nth(0).uncheck()
+  await expect(inputs.nth(1)).toBeChecked()
+  for (let i = 0; i < 5; i++) {
+    await inputs.nth(0).check()
+    await inputs.nth(0).uncheck()
+  }
+  await page.getByRole('button', { name: '選択を解除' }).click()
+  await expect(inputs.nth(1)).not.toBeChecked()
+  expect(requests).toBe(1)
+})
+test('通常画面: loading→HTTP失敗→再試行loading→成功（routeモック）', async ({
+  page,
+}) => {
+  let attempt = 0
+  let release!: () => void
+  await page.route('**/api/v1/prefectures', async (route) => {
+    attempt++
+    await new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await route.fulfill(
+      attempt === 1
+        ? { status: 503, json: { error: 'unavailable' } }
+        : { json: { message: null, result } },
+    )
+  })
+  await page.goto('/')
+  await expect(page.locator('.checkbox-skeleton')).toHaveCount(47)
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await expect.poll(() => Boolean(release)).toBe(true)
+  release()
+  await expect(page.getByRole('alert')).toContainText(
+    '都道府県一覧を取得できませんでした',
+  )
+  const retry = page.getByRole('button', { name: '再読み込み' })
+  await retry.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.checkbox-skeleton')).toHaveCount(47)
+  await expect.poll(() => attempt).toBe(2)
+  release()
+  await expect(page.getByRole('checkbox')).toHaveCount(2)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+for (const width of [1440, 768, 390, 320]) {
+  test(`合成fixture ${width}px: 47県・選択通知・開閉・横溢れなし`, async ({
+    page,
+  }) => {
+    let apiRequests = 0
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname.startsWith('/api/')) apiRequests++
+    })
+    await page.setViewportSize({ width, height: 1000 })
+    await page.goto('/tests/e2e/fixtures/prefecture-selection.html')
+    await expect(page.getByRole('checkbox')).toHaveCount(47)
+    await page.getByRole('checkbox', { name: '北海道', exact: true }).check()
+    await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
+    await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
+      '2 / 47 選択中',
+    )
+    await expect(page.getByLabel('選択県')).toContainText('"prefCode":13')
+    if (width < 640) {
+      await page.getByRole('button', { name: '閉じる', exact: true }).click()
+      await expect(page.getByRole('checkbox')).toHaveCount(0)
+      await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
+      await expect(
+        page.getByRole('checkbox', { name: '東京都', exact: true }),
+      ).toBeChecked()
+    }
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(width)
+    expect(apiRequests).toBe(0)
+  })
+}
