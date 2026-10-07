@@ -75,7 +75,8 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID"
           gh pr view "$PR_NUMBER" --json state,headRefOid --jq 'select(.state == "OPEN") | .headRefOid' | grep -Fx "$HEAD_SHA"
           test -f "review-assets/performance/$HEAD_SHA/index.html"
-          # Asset files are uploaded as data, never executed in this privileged job.
+          # PR assets are data only. The API relay Worker comes from trusted main.
+          # No production Secret or binding is passed to Preview or PR code.
           pnpm exec wrangler preview --config wrangler.review.jsonc --name "pr-$PR_NUMBER" --ignore-base-config --json > "$RUNNER_TEMP/preview-output.log"
           sed -n '/^{/,$p' "$RUNNER_TEMP/preview-output.log" > "$RUNNER_TEMP/preview.json"
           url="$(jq -er '.preview.urls[0]' "$RUNNER_TEMP/preview.json")"
