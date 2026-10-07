@@ -252,7 +252,7 @@ test('全体確認用fixtureは同じAppを使用しAPI通信せず人口値を�
     requests.push(route.request().url())
     return route.abort()
   })
-  await page.goto('/tests/e2e/fixtures/app-integration.html')
+  await page.goto('/tests/preview/app-integration.html')
   await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
   await expect(page.locator('canvas')).toBeVisible()
   await page.locator('summary').click()

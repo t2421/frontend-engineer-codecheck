@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import {
   fetchPrefectures,
   parsePrefectures,
-} from '../../src/features/population/prefectureApi'
+} from '../../src/components/prefectures/prefectureApi'
 const result = [
   { prefCode: 13, prefName: '東京都' },
   { prefCode: 1, prefName: '北海道' },

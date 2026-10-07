@@ -21,7 +21,7 @@ import {
   mobileYearTicks,
   seriesColorTokens,
 } from './populationChartData'
-import StatusMessage from '../../shared/ui/StatusMessage.vue'
+import StatusMessage from '../shared/StatusMessage.vue'
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, Tooltip)
 const props = defineProps<{

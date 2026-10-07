@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { mount } from '@vue/test-utils'
-import CheckboxSkeleton from '../../src/shared/ui/CheckboxSkeleton.vue'
-import PrefectureSelectorSkeleton from '../../src/features/population/PrefectureSelectorSkeleton.vue'
+import CheckboxSkeleton from '../../src/components/shared/CheckboxSkeleton.vue'
+import PrefectureSelectorSkeleton from '../../src/components/prefectures/PrefectureSelectorSkeleton.vue'
 
 const interactive =
   'input, button, select, textarea, a[href], [tabindex], [contenteditable="true"]'

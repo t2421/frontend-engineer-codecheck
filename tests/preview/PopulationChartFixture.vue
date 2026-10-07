@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import PopulationPage from '../../../src/components/PopulationPage.vue'
-import PopulationDataPanel from '../../../src/features/population/PopulationDataPanel.vue'
-import Checkbox from '../../../src/shared/ui/Checkbox.vue'
-import Button from '../../../src/shared/ui/Button.vue'
-import { type PopulationComposition } from '../../../src/features/population/populationApi'
+import PopulationPage from '../../src/pages/PopulationPage.vue'
+import PopulationDataPanel from '../../src/components/population/PopulationDataPanel.vue'
+import Checkbox from '../../src/components/shared/Checkbox.vue'
+import Button from '../../src/components/shared/Button.vue'
+import { type PopulationComposition } from '../../src/components/population/populationApi'
 
 const selected = ref<number[]>([])
 const visible = ref(true)

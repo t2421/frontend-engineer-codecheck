@@ -22,7 +22,7 @@
 
 **#8 / PR40はマージ済み**（main `75aea1d`）。未選択・読み込み・失敗はmainの共通`StatusMessage`を使い、action slotへ共通`Button`を渡す。共通部品自体は変更しない。
 
-**#24は未実装**。都道府県一覧取得・一覧UIは作成していない。Appのpropsと、`tests/e2e/fixtures/population-data.html`の検証専用2県入力で独立検証する。#24側の選択配列をこの入力へ接続する作業が残る。検証用チェックボックス・JSON出力はアプリ配信物に含まれない。
+**#24は未実装**。都道府県一覧取得・一覧UIは作成していない。Appのpropsと、`tests/preview/population-data.html`の検証専用2県入力で独立検証する。#24側の選択配列をこの入力へ接続する作業が残る。検証用チェックボックス・JSON出力はアプリ配信物に含まれない。
 
 **#45は別タスクでローカル実装済み**。Workerには変更を加えていない。#45の記録と、下記パス・成功時envelope・失敗時HTTP statusの整合を確認した。
 
@@ -59,7 +59,7 @@ PR40はmain `75aea1d85a04482a18610963133a6b5860ca1dc2`へマージ済み。こ�
 
 ## 承認済みPR更新と確認fixture
 
-確認ページのentryを`tests/e2e/fixtures/population-data.html`へ移し、既存Review assetsの公開対象へ揃えた。公開ページは合成データを注入し、実APIへ通信せず、県選択・区分切替・キャッシュ・取得回数、次の取得の失敗/再試行・遅延応答を操作できる。画面にも合成データである旨を明記する。後続データのJSON出力は確認fixtureだけの表示。
+確認ページのentryを`tests/preview/population-data.html`へ移し、既存Review assetsの公開対象へ揃えた。公開ページは合成データを注入し、実APIへ通信せず、県選択・区分切替・キャッシュ・取得回数、次の取得の失敗/再試行・遅延応答を操作できる。画面にも合成データである旨を明記する。後続データのJSON出力は確認fixtureだけの表示。
 
 `?mode=proxy`はPlaywright routeのAPIモック検証専用。既存の5件はこのモードで取得関数・HTTP失敗・遅延応答を検証し、追加1件は既定の合成データモードで失敗・再試行・遅延応答とAPI通信ゼロを検証する。どちらも実API疎通を証明しない。
 

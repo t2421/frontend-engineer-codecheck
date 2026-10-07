@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import SingleSelectGroup from '../../../src/shared/ui/SingleSelectGroup.vue'
+import SingleSelectGroup from '../../src/components/shared/SingleSelectGroup.vue'
 
 const selected = ref('total')
 const other = ref(1)

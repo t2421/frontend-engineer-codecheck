@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
-import SingleSelectGroup from '../../src/shared/ui/SingleSelectGroup.vue'
+import SingleSelectGroup from '../../src/components/shared/SingleSelectGroup.vue'
 
 const options = [
   { value: 'first', label: '最初の選択肢' },

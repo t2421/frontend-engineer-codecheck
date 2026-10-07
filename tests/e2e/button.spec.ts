@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/tests/fixtures/button.html')
+  await page.goto('/tests/preview/button.html')
 })
 
 test('マウス・Enter・Spaceで一度ずつ通知し、Tabでは無効ボタンを飛ばす', async ({

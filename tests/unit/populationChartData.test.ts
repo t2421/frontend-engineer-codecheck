@@ -3,7 +3,7 @@ import {
   createPopulationChartData,
   seriesStyle,
   mobileYearTicks,
-} from '../../src/features/population/populationChartData'
+} from '../../src/components/population/populationChartData'
 import { series } from '../fixtures/populationChart'
 
 test('スマホ目盛りは指定4年をデータ範囲内だけ返し、欠けた年のデータ点は追加しない', () => {

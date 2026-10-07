@@ -2,7 +2,7 @@ import { expect, test, vi } from 'vitest'
 import {
   fetchPopulation,
   parsePopulation,
-} from '../../src/features/population/populationApi'
+} from '../../src/components/population/populationApi'
 import { populationResponse } from '../fixtures/population'
 
 test('全区分を県単位の同一オリジンGETから取得する', async () => {

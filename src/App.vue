@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import PopulationPage from './components/PopulationPage.vue'
-import PrefectureSelectionPanel from './features/population/PrefectureSelectionPanel.vue'
-import PopulationDataPanel from './features/population/PopulationDataPanel.vue'
-import type { PrefectureLoader } from './features/population/usePrefectures'
-import type { PopulationLoader } from './features/population/usePopulationData'
-import type { Prefecture } from './features/population/prefectureApi'
+import PopulationPage from './pages/PopulationPage.vue'
+import PrefectureSelectionPanel from './components/prefectures/PrefectureSelectionPanel.vue'
+import PopulationDataPanel from './components/population/PopulationDataPanel.vue'
+import type { PrefectureLoader } from './components/prefectures/usePrefectures'
+import type { PopulationLoader } from './components/population/usePopulationData'
+import type { Prefecture } from './components/prefectures/prefectureApi'
 defineProps<{
   prefectureLoader?: PrefectureLoader
   populationLoader?: PopulationLoader

@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import App from '../../src/App.vue'
-import PopulationDataPanel from '../../src/features/population/PopulationDataPanel.vue'
+import PopulationDataPanel from '../../src/components/population/PopulationDataPanel.vue'
 import { populationResponse } from '../fixtures/population'
 afterEach(() => vi.unstubAllGlobals())
 test('県選択をmainの人口区分UIへ渡し、区分変更・全解除でも選択と区分が整合する', async () => {
@@ -46,7 +46,7 @@ test('県選択をmainの人口区分UIへ渡し、区分変更・全解除で�
 
 test('全体確認用loaderを既存人口パネルへ渡し、選択した県だけ取得する', async () => {
   const { parsePopulation } =
-    await import('../../src/features/population/populationApi')
+    await import('../../src/components/population/populationApi')
   const populationLoader = vi
     .fn()
     .mockResolvedValue(parsePopulation(populationResponse()))

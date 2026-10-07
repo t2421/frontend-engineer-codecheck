@@ -23,7 +23,7 @@ node .github/scripts/build-review.mjs
 
 別タスクが5175番を使っていたため、本検証では一時的なPlaywright設定で5186番に変更した。それ以外の設定は既存のplaywright.config.tsと同じ。一時設定は成果物に含めない。
 
-アプリ本体 `/` は同一originの固定GETへ接続する。テストはPlaywright routeモックで47県・4区分の合成応答を返し、実Appで検証する。別の確認ページ `/tests/e2e/fixtures/app-integration.html` は同じAppに合成loaderを渡すためAPIへ通信しない。UI専用Previewにも既存buildで含まれる。これを実API成功として扱わない。
+アプリ本体 `/` は同一originの固定GETへ接続する。テストはPlaywright routeモックで47県・4区分の合成応答を返し、実Appで検証する。別の確認ページ `/tests/preview/app-integration.html` は同じAppに合成loaderを渡すためAPIへ通信しない。UI専用Previewにも既存buildで含まれる。これを実API成功として扱わない。
 
 ## PRD受入条件
 

@@ -7,6 +7,7 @@ const props = withDefaults(
   defineProps<{ label: string; modelValue: boolean; disabled?: boolean }>(),
   { disabled: false },
 )
+// `change` は v-model を使わない呼び出し元（カウンタ・ログ等）向け。値は `update:modelValue` と同一。
 const emit = defineEmits<{
   'update:modelValue': [checked: boolean]
   change: [checked: boolean]

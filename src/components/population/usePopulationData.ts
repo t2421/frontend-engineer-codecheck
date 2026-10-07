@@ -14,6 +14,8 @@ import {
   type PopulationSeries,
   type SelectedPrefecture,
 } from './populationApi'
+import type { StatusMessageState } from '../shared/StatusMessage.vue'
+export type PopulationStatus = StatusMessageState | 'ready'
 export type PopulationLoader = (
   prefCode: number,
 ) => Promise<PopulationComposition>
@@ -54,7 +56,7 @@ export function usePopulationData(
     },
     { immediate: true },
   )
-  const status = computed(() => {
+  const status = computed<PopulationStatus>(() => {
     if (!prefectures.value.length) return 'empty'
     if (
       prefectures.value.some(

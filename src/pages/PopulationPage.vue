@@ -140,7 +140,8 @@ import populationMark from '../assets/population-mark.svg'
   min-height: 44px;
 }
 
-/* Empty slots reserve the reference layout until feature content is supplied. */
+/* 空 slot の高さは参照デザインのレイアウトを仮に確保するもの。
+   `prefectures` / `population` slot に実部品が入ったら `.prefectures-space` / `.population-space` と各 media query 内の同名ルールを削除する。 */
 .prefectures-space {
   min-height: 284px;
 }

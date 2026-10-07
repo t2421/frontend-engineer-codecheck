@@ -41,7 +41,7 @@ for (const width of [1440, 768, 390, 320]) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 1100 })
-    await page.goto('/tests/e2e/fixtures/population-chart.html')
+    await page.goto('/tests/preview/population-chart.html')
     await expect(page.getByRole('status')).toContainText('都道府県を選択すると')
     expect((await snapshot(page)).count).toBe(0)
     await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
@@ -145,7 +145,7 @@ test('5年/1年刻みの点とtooltipを維持し、639/640px境界のresizeで�
     ['annual', 1],
   ] as const) {
     await page.setViewportSize({ width: 768, height: 1100 })
-    await page.goto(`/tests/e2e/fixtures/population-chart.html?years=${mode}`)
+    await page.goto(`/tests/preview/population-chart.html?years=${mode}`)
     await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
     await expect(page.locator('canvas')).toBeVisible()
     const initial = await snapshot(page)
@@ -188,7 +188,7 @@ test('指定年の一部/全部がデータ範囲外でも範囲と元の点を�
     ['partial', [1970, 1975, 1980, 1985, 1990], [1980]],
     ['gap', [2005, 2010, 2015], []],
   ] as const) {
-    await page.goto(`/tests/e2e/fixtures/population-chart.html?years=${mode}`)
+    await page.goto(`/tests/preview/population-chart.html?years=${mode}`)
     await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
     await expect(page.locator('canvas')).toBeVisible()
     const current = await snapshot(page)
@@ -213,7 +213,7 @@ test('47県の凡例・表とリサイズで重なり/横溢れ/instance重複�
     if (new URL(request.url()).pathname.startsWith('/api/'))
       apiRequests.push(request.url())
   })
-  await page.goto('/tests/e2e/fixtures/population-chart.html')
+  await page.goto('/tests/preview/population-chart.html')
   await page.getByRole('button', { name: '全47県を選択' }).click()
   await expect(
     page.getByRole('img', { name: /総人口の人口推移/ }),

@@ -79,7 +79,7 @@ for (const width of [1440, 768, 640, 639, 390, 320]) {
       if (new URL(request.url()).pathname.startsWith('/api/')) apiRequests++
     })
     await page.setViewportSize({ width, height: 1000 })
-    await page.goto('/tests/e2e/fixtures/prefecture-selection.html')
+    await page.goto('/tests/preview/prefecture-selection.html')
     if (width < 640) {
       await expect(page.getByRole('checkbox')).toHaveCount(0)
       const open = page.getByRole('button', { name: '都道府県を選ぶ' })
@@ -117,7 +117,7 @@ test('resize: 閉じたスマホ→640pxは一覧、隠れるフォーカスを�
   page,
 }) => {
   await page.setViewportSize({ width: 768, height: 1000 })
-  await page.goto('/tests/e2e/fixtures/prefecture-selection.html')
+  await page.goto('/tests/preview/prefecture-selection.html')
   const tokyo = page.getByRole('checkbox', { name: '東京都', exact: true })
   await tokyo.check()
   await tokyo.focus()

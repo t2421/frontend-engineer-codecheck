@@ -1,6 +1,6 @@
 # 共通チェックボックス
 
-Issue #6 の `src/shared/ui/Checkbox.vue`。Vue 3 / TypeScript / scoped CSSで実装し、任意の項目をbooleanで選択・解除する。都道府県コード、API、一覧生成、人口データは持たない。
+Issue #6 の `src/components/shared/Checkbox.vue`。Vue 3 / TypeScript / scoped CSSで実装し、任意の項目をbooleanで選択・解除する。都道府県コード、API、一覧生成、人口データは持たない。
 
 ```vue
 <script setup lang="ts">
@@ -25,7 +25,7 @@ const selected = ref(false)
 
 PR #33 はマージ済み。初回はマージコミット `05c8718d568203097b9cacddaadb8b7a0f161704` を基点とし、再開時に最新main `2867e3ca76f26af3c0a67704d090052811cdc2b5` へfast-forwardした。既存 `src/base.css` の共通CSSトークンを参照する。フォントの配信方法は既存のDESIGN_TOKENS.mdと同じ未確定事項で、未導入環境ではsans-serifにフォールバックする。
 
-FigmaのIcon / Check（4:2 / 4:3）は `src/shared/ui/assets/check.svg` に取得した原本を使用。20×20のroot寸法を保持し、装飾としてaria-hiddenのcontrol内に配置する。Figmaの一時URLは実装に含めない。依存追加、共通CSSの変更、App画面への仮の組込みは行っていない。
+FigmaのIcon / Check（4:2 / 4:3）は `src/components/shared/assets/check.svg` に取得した原本を使用。20×20のroot寸法を保持し、装飾としてaria-hiddenのcontrol内に配置する。Figmaの一時URLは実装に含めない。依存追加、共通CSSの変更、App画面への仮の組込みは行っていない。
 
 ## 検証
 
@@ -42,6 +42,6 @@ FigmaのIcon / Check（4:2 / 4:3）は `src/shared/ui/assets/check.svg` に取�
 
 ## 操作可能なPRプレビュー
 
-review buildの規約に合わせてHTMLを `tests/e2e/fixtures/checkbox.html` へ移動し、既存 `tests/fixtures/checkbox.ts` を再利用する。`.github/scripts/build-review.mjs` がこのHTMLを静的出力へ含め、reviewトップのリンクから開ける。ローカルと公開プレビューのパスは `/tests/e2e/fixtures/checkbox.html`。通常のproduction buildのentryやAppには追加しない。
+review buildの規約に合わせてHTMLを `tests/preview/checkbox.html` へ移動し、既存 `tests/preview/checkbox.ts` を再利用する。`.github/scripts/build-review.mjs` がこのHTMLを静的出力へ含め、reviewトップのリンクから開ける。ローカルと公開プレビューのパスは `/tests/preview/checkbox.html`。通常のproduction buildのentryやAppには追加しない。
 
 追加確認: review静的出力のトップリンクと部品ページをChromeで開き、1440 / 390pxで未選択・クリック選択・Space切替・Tab移動・disabledの通知抑止を検証。768pxも目視確認し、キャプチャを更新した。check、Vitest 22件、Chrome E2E 9件、通常buildとreview buildが成功。

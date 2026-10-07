@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import CheckboxSkeleton from '../../shared/ui/CheckboxSkeleton.vue'
+import CheckboxSkeleton from '../shared/CheckboxSkeleton.vue'
 </script>
 
 <template>
