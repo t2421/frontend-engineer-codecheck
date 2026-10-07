@@ -11,9 +11,9 @@ const props = withDefaults(
   { disabled: false, type: 'button' },
 )
 
-const emit = defineEmits<{ click: [event: globalThis.MouseEvent] }>()
+const emit = defineEmits<{ click: [event: MouseEvent] }>()
 
-function handleClick(event: globalThis.MouseEvent) {
+function handleClick(event: MouseEvent) {
   if (!props.disabled) emit('click', event)
 }
 </script>

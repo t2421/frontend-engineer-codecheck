@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { expectNoHorizontalOverflow } from './layout'
 const result = [
   { prefCode: 13, prefName: 'API東京都' },
   { prefCode: 1, prefName: 'API北海道' },
@@ -106,9 +107,7 @@ for (const width of [1440, 768, 640, 639, 390, 320]) {
         page.getByRole('checkbox', { name: '東京都', exact: true }),
       ).toBeChecked()
     }
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth),
-    ).toBe(width)
+    await expectNoHorizontalOverflow(page)
     expect(apiRequests).toBe(0)
   })
 }

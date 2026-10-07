@@ -28,7 +28,7 @@ const props = defineProps<{
   series: readonly PopulationSeries[]
   category: PopulationCategory
 }>()
-const canvas = ref<globalThis.HTMLCanvasElement>()
+const canvas = ref<HTMLCanvasElement>()
 const descriptionId = useId()
 const categoryLabel = computed(
   () => populationCategories.find((c) => c.value === props.category)!.label,
@@ -48,7 +48,7 @@ function syncChart() {
     destroy()
     return
   }
-  const css = globalThis.getComputedStyle(canvas.value)
+  const css = getComputedStyle(canvas.value)
   const token = (name: string) => css.getPropertyValue(name).trim()
   const data = createPopulationChartData(
     props.series,
@@ -71,7 +71,7 @@ function syncChart() {
         const xTicks = instance.options.scales!.x!.ticks as Partial<
           LinearScaleOptions['ticks']
         >
-        xTicks.autoSkip = !globalThis.matchMedia('(width < 640px)').matches
+        xTicks.autoSkip = !matchMedia('(width < 640px)').matches
         xTicks.maxTicksLimit = 7
         instance.options.scales!.y!.ticks!.maxTicksLimit =
           size.width < 480 ? 3 : 5
@@ -93,7 +93,7 @@ function syncChart() {
           type: 'linear',
           bounds: 'data',
           afterBuildTicks(scale) {
-            if (globalThis.matchMedia('(width < 640px)').matches)
+            if (matchMedia('(width < 640px)').matches)
               scale.ticks = mobileYearTicks(props.series).map((value) => ({
                 value,
               }))

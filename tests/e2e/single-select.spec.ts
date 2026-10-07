@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { expectNoHorizontalOverflow } from './layout'
 import { captureScreenshot } from './screenshot'
 
 for (const width of [1440, 390]) {
@@ -126,11 +127,7 @@ for (const width of [1440, 390]) {
         .getByRole('radio', { name: '二', exact: true })
         .click()
       await captureScreenshot(page, testInfo, `single-select-${width}.png`)
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= window.innerWidth,
-        ),
-      ).toBe(true)
+      await expectNoHorizontalOverflow(page)
       for (const label of await page.locator('.option-label').all()) {
         expect(
           await label.evaluate(
