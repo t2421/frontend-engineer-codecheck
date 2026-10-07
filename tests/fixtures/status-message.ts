@@ -1,8 +1,9 @@
 import { createApp, defineComponent, h, ref } from 'vue'
 import StatusMessage from '../../src/shared/ui/StatusMessage.vue'
+import Button from '../../src/shared/ui/Button.vue'
 import '../../src/base.css'
 
-// The slot accepts any native control; the shared Button can be composed by callers.
+// Retry decisions remain with the caller; the action slot composes the shared Button.
 createApp(
   defineComponent({
     setup() {
@@ -32,15 +33,10 @@ createApp(
               },
               {
                 action: () =>
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      class: 'retry',
-                      onClick: () => retries.value++,
-                    },
-                    '再読み込み',
-                  ),
+                  h(Button, {
+                    label: '再読み込み',
+                    onClick: () => retries.value++,
+                  }),
               },
             ),
             h(
@@ -55,19 +51,14 @@ createApp(
               },
               {
                 action: () =>
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      class: 'retry',
-                      disabled: state.value === 'loading',
-                      onClick: () => {
-                        retries.value++
-                        state.value = 'loading'
-                      },
+                  h(Button, {
+                    label: '一覧を再読み込み',
+                    disabled: state.value === 'loading',
+                    onClick: () => {
+                      retries.value++
+                      state.value = 'loading'
                     },
-                    '一覧を再読み込み',
-                  ),
+                  }),
               },
             ),
           ]),

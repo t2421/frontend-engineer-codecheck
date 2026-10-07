@@ -34,4 +34,6 @@ Node 24.16.0／native pnpm 12.8.1、最新main（05c8718、PR #33反映）を使
 - Chrome E2Eは既存分を含む3件成功。Tab／Enter／Space、親の再試行通知とloadingへの更新、操作無効化、読み上げ領域の文言／役割、reduced motionを確認。
 - Chromeの1440／768／390／320pxで各状態を目視。アイコン描画、文字の折返し、横溢れなし、フォーカスリングとアクセシビリティツリーを確認。実際のスクリーンリーダーによる音声読み上げは未確認。
 
-検証fixtureはnative buttonをslotへ渡している。Issue #5の共通Buttonは並行実装中のため、この変更では取り込まない。Buttonのmain反映後に上の組み合わせで最終確認する。
+PR #37反映後のmain（2867e3c）を取り込み、検証fixtureの再試行2操作と部品テストのaction slotは共通Buttonを使用する。fixtureの独自ボタンCSSは削除した。StatusMessage本体のslot設計と通信処理を持たない責務は維持する。
+
+置換後の検証：check（lint・styles・format・types）、Vitest 20件、Chrome E2E 9件、build成功。StatusMessageと共通Buttonの組み合わせで、マウスクリック・Tab／Enter／Space・disabled時のクリック通知抑止とTabスキップを確認した。

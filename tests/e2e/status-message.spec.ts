@@ -17,16 +17,28 @@ test('状態の文言を読み上げ領域へ公開し、再試行はキーボ�
   const retry = page.getByRole('button', { name: '再読み込み', exact: true })
   await page.keyboard.press('Tab')
   await expect(retry).toBeFocused()
-  await retry.press('Enter')
+  await retry.click()
   await expect(page.getByLabel('再試行回数')).toHaveText('1')
-  await retry.press('Space')
+  await retry.press('Enter')
   await expect(page.getByLabel('再試行回数')).toHaveText('2')
+  await retry.press('Space')
+  await expect(page.getByLabel('再試行回数')).toHaveText('3')
   await page.keyboard.press('Tab')
   const listRetry = page.getByRole('button', { name: '一覧を再読み込み' })
   await expect(listRetry).toBeFocused()
   await listRetry.press('Enter')
-  await expect(page.getByLabel('再試行回数')).toHaveText('3')
+  await expect(page.getByLabel('再試行回数')).toHaveText('4')
   await expect(listRetry).toBeDisabled()
+  const disabledBox = await listRetry.boundingBox()
+  expect(disabledBox).not.toBeNull()
+  await page.mouse.click(
+    disabledBox!.x + disabledBox!.width / 2,
+    disabledBox!.y + disabledBox!.height / 2,
+  )
+  await expect(page.getByLabel('再試行回数')).toHaveText('4')
+  await retry.focus()
+  await page.keyboard.press('Tab')
+  await expect(listRetry).not.toBeFocused()
   await expect(page.getByRole('status').nth(2)).toContainText(
     '一覧を読み込み中…',
   )

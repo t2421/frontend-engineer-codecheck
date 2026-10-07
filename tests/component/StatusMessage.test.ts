@@ -2,6 +2,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { h } from 'vue'
 import StatusMessage from '../../src/shared/ui/StatusMessage.vue'
+import Button from '../../src/shared/ui/Button.vue'
 
 const wrappers: ReturnType<typeof mount>[] = []
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()))
@@ -81,8 +82,7 @@ test('任意の操作はslotで提供し呼び出し元の再試行を通知す�
   const wrapper = mount(StatusMessage, {
     props: { state: 'error', title: '取得失敗', headingLevel: 2 },
     slots: {
-      action: () =>
-        h('button', { type: 'button', onClick: retry }, '再読み込み'),
+      action: () => h(Button, { label: '再読み込み', onClick: retry }),
     },
   })
   wrappers.push(wrapper)
