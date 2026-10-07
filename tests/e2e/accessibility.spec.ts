@@ -7,18 +7,30 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
 
   test.beforeEach(async ({ page }) => {
     apiRequests.length = 0
-    // Current main has no API-connected UI. Never call a real upstream or use Secrets.
+    // Mock the implemented prefecture API; reject every other upstream request.
     await page.route('**/api/**', async (route) => {
+      if (
+        new URL(route.request().url()).pathname === '/api/v1/prefectures' &&
+        route.request().method() === 'GET'
+      ) {
+        await route.fulfill({
+          json: {
+            message: null,
+            result: [{ prefCode: 13, prefName: '検査用東京都' }],
+          },
+        })
+        return
+      }
       apiRequests.push(route.request().url())
       await route.fulfill({ status: 404, json: { message: 'Not implemented' } })
     })
   })
 
   test.afterEach(() => {
-    // When API-connected states land, replace this guard with explicit response fixtures.
+    // New API-connected states need explicit response fixtures.
     expect(
       apiRequests,
-      '未実装のAPI通信が追加されたら状態モックを更新する',
+      '未定義のAPI通信が追加されたら状態モックを更新する',
     ).toEqual([])
   })
 
@@ -84,6 +96,9 @@ test.describe('既存画面と共通部品のWCAG A/AA自動検査', () => {
       ).toBeVisible()
       await expect(
         page.getByRole('region', { name: '人口推移', exact: true }),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('checkbox', { name: '検査用東京都' }),
       ).toBeVisible()
       await checkAccessibility(page, testInfo)
     })
