@@ -31,6 +31,10 @@ test('通常画面: API順の動的一覧、キーボード・連続選択・解
   }
   await page.getByRole('button', { name: '選択を解除' }).click()
   await expect(inputs.nth(1)).not.toBeChecked()
+  await page.setViewportSize({ width: 390, height: 1000 })
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await page.setViewportSize({ width: 640, height: 1000 })
+  await expect(inputs).toHaveCount(2)
   expect(requests).toBe(1)
 })
 test('通常画面: loading→HTTP失敗→再試行loading→成功（routeモック）', async ({
@@ -66,7 +70,7 @@ test('通常画面: loading→HTTP失敗→再試行loading→成功（routeモ�
   await expect(page.getByRole('checkbox')).toHaveCount(2)
   await expect(page.getByRole('alert')).toHaveCount(0)
 })
-for (const width of [1440, 768, 390, 320]) {
+for (const width of [1440, 768, 640, 639, 390, 320]) {
   test(`合成fixture ${width}px: 47県・選択通知・開閉・横溢れなし`, async ({
     page,
   }) => {
@@ -76,6 +80,16 @@ for (const width of [1440, 768, 390, 320]) {
     })
     await page.setViewportSize({ width, height: 1000 })
     await page.goto('/tests/e2e/fixtures/prefecture-selection.html')
+    if (width < 640) {
+      await expect(page.getByRole('checkbox')).toHaveCount(0)
+      const open = page.getByRole('button', { name: '都道府県を選ぶ' })
+      await expect(open).toHaveAttribute('aria-expanded', 'false')
+      await open.focus()
+      await page.keyboard.press('Enter')
+      await expect(
+        page.getByRole('button', { name: '閉じる', exact: true }),
+      ).toHaveAttribute('aria-expanded', 'true')
+    }
     await expect(page.getByRole('checkbox')).toHaveCount(47)
     await page.getByRole('checkbox', { name: '北海道', exact: true }).check()
     await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
@@ -84,7 +98,8 @@ for (const width of [1440, 768, 390, 320]) {
     )
     await expect(page.getByLabel('選択県')).toContainText('"prefCode":13')
     if (width < 640) {
-      await page.getByRole('button', { name: '閉じる', exact: true }).click()
+      await page.getByRole('button', { name: '閉じる', exact: true }).focus()
+      await page.keyboard.press('Space')
       await expect(page.getByRole('checkbox')).toHaveCount(0)
       await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
       await expect(
@@ -97,3 +112,47 @@ for (const width of [1440, 768, 390, 320]) {
     expect(apiRequests).toBe(0)
   })
 }
+
+test('resize: 閉じたスマホ→640pxは一覧、隠れるフォーカスを可視操作へ移す', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 768, height: 1000 })
+  await page.goto('/tests/e2e/fixtures/prefecture-selection.html')
+  const tokyo = page.getByRole('checkbox', { name: '東京都', exact: true })
+  await tokyo.check()
+  await tokyo.focus()
+  await page.setViewportSize({ width: 639, height: 1000 })
+  const open = page.getByRole('button', { name: '都道府県を選ぶ' })
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await expect(open).toBeFocused()
+  await expect(open).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('status', { name: '選択件数' })).toHaveText(
+    '1 / 47 選択中',
+  )
+  await page.keyboard.press('Enter')
+  await expect(tokyo).toBeChecked()
+  await tokyo.focus()
+  await page.setViewportSize({ width: 768, height: 1000 })
+  await expect(tokyo).toBeFocused()
+  await page.setViewportSize({ width: 320, height: 1000 })
+  await expect(tokyo).toBeFocused()
+  await expect(
+    page.getByRole('button', { name: '閉じる', exact: true }),
+  ).toHaveAttribute('aria-expanded', 'true')
+  await page.getByRole('button', { name: '閉じる', exact: true }).focus()
+  await page.keyboard.press('Space')
+  await page.setViewportSize({ width: 640, height: 1000 })
+  await expect(page.getByRole('checkbox')).toHaveCount(47)
+  await expect(page.getByRole('checkbox').first()).toBeFocused()
+  await expect(tokyo).toBeChecked()
+  await page.setViewportSize({ width: 390, height: 1000 })
+  await expect(open).toBeFocused()
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await expect(page.getByLabel('選択県')).toContainText('"prefCode":13')
+  const outside = page.getByRole('link', { name: '本文へ移動' })
+  await outside.focus()
+  await page.setViewportSize({ width: 768, height: 1000 })
+  await expect(outside).toBeFocused()
+  await page.setViewportSize({ width: 320, height: 1000 })
+  await expect(outside).toBeFocused()
+})

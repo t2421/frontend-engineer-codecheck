@@ -31,21 +31,36 @@ test('API順で動的表示し複数選択・個別解除・連続操作・全�
   expect(wrapper.vm.selected).toEqual([])
   wrapper.unmount()
 })
-test('展開を閉じても選択を保持し再展開できる', async () => {
+test('スマホは初期closed、開閉後も選択県・件数を保持する', async () => {
+  const media = {
+    matches: true,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => media),
+  )
   const wrapper = mount(PrefectureSelector, {
     props: { prefectures, modelValue: [1] },
   })
-  const toggle = wrapper.get('[aria-expanded]')
-  await toggle.trigger('click')
-  expect(toggle.attributes('aria-expanded')).toBe('false')
-  expect(wrapper.text()).toContain('北海道')
-  expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-  await toggle.trigger('click')
-  expect(toggle.attributes('aria-expanded')).toBe('true')
-  expect(
-    (wrapper.findAll('input')[1]!.element as HTMLInputElement).checked,
-  ).toBe(true)
-  wrapper.unmount()
+  try {
+    const toggle = wrapper.get('[aria-expanded]')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('.selection-summary').text()).toBe('北海道')
+    expect(wrapper.get('[role="status"]').text()).toBe('1 / 2 選択中')
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(
+      (wrapper.findAll('input')[1]!.element as HTMLInputElement).checked,
+    ).toBe(true)
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.get('[role="status"]').text()).toBe('1 / 2 選択中')
+  } finally {
+    wrapper.unmount()
+  }
 })
 test('読み込みskeletonから一覧へ戻り選択県code/nameを通知する', async () => {
   let resolve!: (value: Prefecture[]) => void
