@@ -12,6 +12,8 @@ test('県選択をmainの人口区分UIへ渡し、区分変更・全解除で�
   const prefectures = [{ prefCode: 1, prefName: '北海道' }]
   const wrapper = mount(App, {
     props: { prefectureLoader: () => Promise.resolve(prefectures) },
+    // Canvas rendering is covered by PopulationChart tests and browser E2E.
+    global: { stubs: { PopulationChart: true } },
   })
   try {
     await flushPromises()
