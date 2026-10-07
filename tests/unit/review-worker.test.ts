@@ -21,7 +21,7 @@ test.each([
   prefectures,
   `${population}?prefCode=1`,
   `${population}?prefCode=47`,
-])('relays the public production API without credentials: %s', async (path) => {
+])('認証情報を転送せず公開済み本番APIへ中継する: %s', async (path) => {
   fetchProduction.mockResolvedValue(
     Response.json(data, {
       headers: { 'Set-Cookie': 'private', 'X-API-KEY': 'private' },
@@ -61,38 +61,38 @@ test.each([
   [`${population}?prefCode=48`, 'GET', 400],
   [`${population}?prefCode=1&prefCode=2`, 'GET', 400],
   [`${population}?prefCode=1&url=https://attacker.test`, 'GET', 400],
-])('rejects %s %s before public API traffic', async (path, method, status) => {
-  const response = await worker.fetch(
-    new Request(`https://preview.test${path}`, { method }),
-  )
-  expect(response.status).toBe(status)
-  if (status === 405) expect(response.headers.get('Allow')).toBe('GET')
-  expect(fetchProduction).not.toHaveBeenCalled()
-})
+])(
+  '不正な要求 %s %s を本番API通信前に拒否する',
+  async (path, method, status) => {
+    const response = await worker.fetch(
+      new Request(`https://preview.test${path}`, { method }),
+    )
+    expect(response.status).toBe(status)
+    if (status === 405) expect(response.headers.get('Allow')).toBe('GET')
+    expect(fetchProduction).not.toHaveBeenCalled()
+  },
+)
 
 test.each([
   [429, 'RATE_LIMITED'],
   [503, 'SERVICE_UNAVAILABLE'],
   [502, 'UPSTREAM_ERROR'],
   [504, 'UPSTREAM_TIMEOUT'],
-])(
-  'preserves API failure %s %s without arbitrary data',
-  async (status, error) => {
-    fetchProduction.mockResolvedValue(
-      Response.json(
-        { error, detail: 'private' },
-        { status, headers: { 'Retry-After': '10', 'Set-Cookie': 'private' } },
-      ),
-    )
-    const response = await worker.fetch(
-      new Request(`https://preview.test${prefectures}`),
-    )
-    expect(response.status).toBe(status)
-    expect(await response.json()).toEqual({ error })
-    expect(response.headers.get('Retry-After')).toBe('10')
-    expect(response.headers.get('Set-Cookie')).toBeNull()
-  },
-)
+])('APIエラー %s %s の固定情報だけを保持する', async (status, error) => {
+  fetchProduction.mockResolvedValue(
+    Response.json(
+      { error, detail: 'private' },
+      { status, headers: { 'Retry-After': '10', 'Set-Cookie': 'private' } },
+    ),
+  )
+  const response = await worker.fetch(
+    new Request(`https://preview.test${prefectures}`),
+  )
+  expect(response.status).toBe(status)
+  expect(await response.json()).toEqual({ error })
+  expect(response.headers.get('Retry-After')).toBe('10')
+  expect(response.headers.get('Set-Cookie')).toBeNull()
+})
 
 test.each([
   new Response('private', {
@@ -103,20 +103,17 @@ test.each([
   new Response('private', { headers: { 'Content-Type': 'application/json' } }),
   Response.json({ error: 'private' }, { status: 500 }),
   Response.json({ message: 'private', result: null }),
-])(
-  'sanitizes unexpected responses and redirects',
-  async (productionResponse) => {
-    fetchProduction.mockResolvedValue(productionResponse)
-    const response = await worker.fetch(
-      new Request(`https://preview.test${prefectures}`),
-    )
-    expect(response.status).toBe(502)
-    expect(await response.json()).toEqual({ error: 'UPSTREAM_ERROR' })
-    expect(response.headers.get('Location')).toBeNull()
-  },
-)
+])('想定外の応答とリダイレクトの詳細を返さない', async (productionResponse) => {
+  fetchProduction.mockResolvedValue(productionResponse)
+  const response = await worker.fetch(
+    new Request(`https://preview.test${prefectures}`),
+  )
+  expect(response.status).toBe(502)
+  expect(await response.json()).toEqual({ error: 'UPSTREAM_ERROR' })
+  expect(response.headers.get('Location')).toBeNull()
+})
 
-test('sanitizes a network exception', async () => {
+test('通信例外の詳細を返さない', async () => {
   fetchProduction.mockRejectedValue(new Error('private'))
   const response = await worker.fetch(
     new Request(`https://preview.test${prefectures}`),
@@ -125,9 +122,12 @@ test('sanitizes a network exception', async () => {
   expect(await response.json()).toEqual({ error: 'UPSTREAM_ERROR' })
 })
 
-test.each(['headers', 'body'])(
-  'bounds a stalled production %s request',
-  async (phase) => {
+test.each([
+  { label: 'ヘッダー', phase: 'headers' },
+  { label: '本文', phase: 'body' },
+])(
+  '本番APIの$label待機が停止しても期限内にタイムアウトする',
+  async ({ phase }) => {
     const controller = new AbortController()
     const timeout = vi
       .spyOn(AbortSignal, 'timeout')
