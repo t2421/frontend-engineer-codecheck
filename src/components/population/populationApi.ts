@@ -1,8 +1,8 @@
 export const populationCategories = [
-  { value: 'total', label: '総人口' },
-  { value: 'young', label: '年少人口' },
-  { value: 'working', label: '生産年齢人口' },
-  { value: 'elder', label: '老年人口' },
+  { value: 'total', label: '総人口', apiLabel: '総人口' },
+  { value: 'young', label: '年少人口', apiLabel: '年少人口' },
+  { value: 'working', label: '生産年齢人口', apiLabel: '生産年齢人口' },
+  { value: 'elder', label: '老年人口', apiLabel: '老年人口' },
 ] as const
 export type PopulationCategory = (typeof populationCategories)[number]['value']
 export interface PopulationPoint {
@@ -92,8 +92,8 @@ export function parsePopulation(body: unknown): PopulationComposition {
   )
   assert(Array.isArray(data), 'data is not an array')
   const categories = {} as PopulationComposition['categories']
-  for (const { value, label } of populationCategories)
-    categories[value] = parseSeries(findSeries(data, label))
+  for (const { value, apiLabel } of populationCategories)
+    categories[value] = parseSeries(findSeries(data, apiLabel))
   return { boundaryYear, categories }
 }
 export async function fetchPopulation(

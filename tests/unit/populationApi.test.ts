@@ -4,8 +4,22 @@ import {
   parsePopulation,
   PopulationDataError,
   POPULATION_FETCH_ERROR,
+  populationCategories,
 } from '../../src/components/population/populationApi'
 import { populationResponse } from '../fixtures/population'
+
+test('表示ラベルを変更してもAPI照合は元の区分名を使用する', () => {
+  const option = populationCategories[0]
+  const original = option.label
+  try {
+    Object.assign(option, { label: '表示用の総人口' })
+    expect(parsePopulation(populationResponse()).categories.total).toEqual([
+      { year: 2020, value: 100 },
+    ])
+  } finally {
+    Object.assign(option, { label: original })
+  }
+})
 
 test('未知の追加ラベルを無視し、必要な4区分だけを返す', () => {
   const response = populationResponse()

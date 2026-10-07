@@ -27,8 +27,12 @@ defineSlots<{
     status: PopulationStatus
   }): unknown
 }>()
-const { category, status, series, retry } = usePopulationData(
+const category = defineModel<PopulationCategory>('category', {
+  default: 'total',
+})
+const { status, series, retry } = usePopulationData(
   () => props.selectedPrefectures,
+  category,
   props.loader,
 )
 const statusCopy: Record<
@@ -62,6 +66,7 @@ const statusCopy: Record<
     <StatusMessage
       v-if="status !== 'ready'"
       :state="status"
+      :compact="series.length > 0"
       :title="statusCopy[status].title"
       :description="statusCopy[status].description"
     >

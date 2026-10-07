@@ -177,16 +177,15 @@ onBeforeUnmount(() => {
         role="img"
         :aria-label="`${categoryLabel}の人口推移（${series.map((s) => s.prefName).join('、')}）`"
         :aria-describedby="descriptionId"
-        >人口の年別値は下の表で確認できます。</canvas
+        >人口の年別値は読み上げ用の表で確認できます。</canvas
       >
     </div>
     <figcaption :id="descriptionId" class="chart-description">
       {{ categoryLabel }}・{{
         series.length
-      }}県の人口推移。横軸は年、縦軸は人口数（万人）。年別の人数は「人口データを表で確認」から確認できます。
+      }}県の人口推移。横軸は年、縦軸は人口数（万人）。年別の人数は読み上げ用の表で確認できます。
     </figcaption>
-    <details class="chart-data">
-      <summary>人口データを表で確認（{{ categoryLabel }}）</summary>
+    <div class="chart-data chart-data-assistive">
       <table v-for="entry in series" :key="entry.prefCode">
         <caption>
           {{
@@ -208,7 +207,7 @@ onBeforeUnmount(() => {
           </tr>
         </tbody>
       </table>
-    </details>
+    </div>
   </figure>
 </template>
 
@@ -258,40 +257,16 @@ onBeforeUnmount(() => {
   max-width: 100%;
 }
 
-.chart-data {
-  padding: var(--space-12);
-  border-radius: var(--radius-8);
-  background-color: var(--color-bg-canvas);
-}
-
-.chart-data summary {
-  cursor: pointer;
-  min-height: 44px;
-  align-content: center;
-  font: var(--font-label);
-}
-
-.chart-data table {
-  width: 100%;
-  border-collapse: collapse;
-  font: var(--font-caption);
-}
-
-.chart-data caption {
-  text-align: start;
-  font: var(--font-label);
-  padding-block: var(--space-12);
-}
-
-.chart-data th,
-.chart-data td {
-  text-align: start;
-  padding: var(--space-8);
-  border-bottom: var(--stroke-1) solid var(--color-border-default);
-}
-
-.chart-data td {
-  text-align: end;
+/* Canvas と同じ年別値を支援技術へ提供し、可視の一覧は表示しない。 */
+.chart-data-assistive {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 @media (width < 640px) {

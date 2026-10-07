@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import PopulationPage from '../../src/pages/PopulationPage.vue'
+import FixtureLayout from './FixtureLayout.vue'
 import PopulationDataPanel from '../../src/components/population/PopulationDataPanel.vue'
 import Button from '../../src/components/shared/Button.vue'
 import { parsePopulation } from '../../src/components/population/populationApi'
@@ -40,7 +40,7 @@ function releaseResponses() {
 }
 </script>
 <template>
-  <PopulationPage>
+  <FixtureLayout>
     <template #prefectures>
       <p>人口データ確認用の仮の選択入力。都道府県一覧 UI 実装時に差し替える</p>
       <template v-if="!proxyMode">
@@ -88,7 +88,7 @@ function releaseResponses() {
         </template>
       </PopulationDataPanel>
     </template>
-  </PopulationPage>
+  </FixtureLayout>
 </template>
 <style scoped>
 .fixture-actions {

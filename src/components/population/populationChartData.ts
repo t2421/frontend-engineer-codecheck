@@ -9,21 +9,13 @@ export function mobileYearTicks(series: readonly PopulationSeries[]) {
 }
 
 // Assign one fixed color token per prefecture, independent of selection order.
-const prefectureOrder = [
-  13,
-  27,
-  1,
-  ...Array.from({ length: 47 }, (_, i) => i + 1).filter(
-    (code) => ![13, 27, 1].includes(code),
-  ),
-]
 export const seriesColorTokens = Array.from(
   { length: 47 },
   (_, i) => `--color-series-${i + 1}`,
 )
 export function seriesStyle(prefCode: number) {
   return {
-    colorIndex: prefectureOrder.indexOf(prefCode),
+    colorIndex: prefCode - 1,
     borderDash: [],
     pointStyle: 'circle' as const,
   }

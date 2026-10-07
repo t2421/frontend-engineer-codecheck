@@ -7,6 +7,20 @@ import Button from '../../src/components/shared/Button.vue'
 const wrappers: ReturnType<typeof mount>[] = []
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()))
 
+test('compact表示でもloading通知をbusy領域の外へ保つ', () => {
+  const wrapper = mount(StatusMessage, {
+    props: { state: 'loading', title: '読み込み中', compact: true },
+  })
+  wrappers.push(wrapper)
+  expect(wrapper.get('.status-message').classes()).toContain(
+    'status-message-compact',
+  )
+  expect(wrapper.get('[role="status"]').text()).toBe('読み込み中')
+  expect(
+    wrapper.get('[role="status"]').element.closest('[aria-busy="true"]'),
+  ).toBeNull()
+})
+
 test.each([
   [
     'empty',

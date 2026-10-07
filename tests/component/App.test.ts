@@ -1,7 +1,10 @@
 import { expect, test } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import App from '../../src/App.vue'
 import PopulationPage from '../../src/pages/PopulationPage.vue'
+import PopulationDataPanel from '../../src/components/population/PopulationDataPanel.vue'
+import { parsePopulation } from '../../src/components/population/populationApi'
+import { populationResponse } from '../fixtures/population'
 
 test('ページとコンテンツ領域を適切な見出し階層で表示する', () => {
   const wrapper = mount(App)
@@ -22,19 +25,35 @@ test('ページとコンテンツ領域を適切な見出し階層で表示す�
   }
 })
 
-test('後続部品をslotへ配置すると空領域を置き換える', () => {
+test('専用ページが部品を直接組み立て、県選択と区分の正本を持つ', async () => {
   const wrapper = mount(PopulationPage, {
-    slots: {
-      prefectures: '<div>都道府県選択部品</div>',
-      population: '<div>人口推移部品</div>',
-      'prefecture-actions': '<button>選択を解除</button>',
+    props: {
+      prefectureLoader: async () => [{ prefCode: 13, prefName: '東京都' }],
+      populationLoader: async () => parsePopulation(populationResponse()),
     },
+    global: { stubs: { PopulationChart: true } },
   })
   try {
-    expect(wrapper.get('.prefectures').text()).toContain('都道府県選択部品')
-    expect(wrapper.get('.population').text()).toContain('人口推移部品')
-    expect(wrapper.get('button').text()).toBe('選択を解除')
-    expect(wrapper.find('[aria-hidden]').exists()).toBe(false)
+    await flushPromises()
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await flushPromises()
+    await wrapper.get('input[value="young"]').setValue()
+    expect(wrapper.getComponent(PopulationDataPanel).props('category')).toBe(
+      'young',
+    )
+    expect(
+      wrapper.getComponent(PopulationDataPanel).props('selectedPrefectures'),
+    ).toEqual([{ prefCode: 13, prefName: '東京都' }])
+    await wrapper.get('.desktop-clear').trigger('click')
+    expect(
+      wrapper.getComponent(PopulationDataPanel).props('selectedPrefectures'),
+    ).toEqual([])
+    expect(wrapper.getComponent(PopulationDataPanel).props('category')).toBe(
+      'young',
+    )
+    expect(wrapper.find('.prefectures-space, .population-space').exists()).toBe(
+      false,
+    )
   } finally {
     wrapper.unmount()
   }
