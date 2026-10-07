@@ -83,7 +83,10 @@ for (const width of [1440, 768, 640, 639, 390, 320]) {
     await page.goto('/tests/preview/prefecture-selection.html')
     if (width < 640) {
       await expect(page.getByRole('checkbox')).toHaveCount(0)
-      const open = page.getByRole('button', { name: '都道府県を選ぶ' })
+      const open = page.getByRole('button', {
+        name: '都道府県を選ぶ',
+        exact: true,
+      })
       await expect(open).toHaveAttribute('aria-expanded', 'false')
       await open.focus()
       await page.keyboard.press('Enter')
@@ -102,7 +105,9 @@ for (const width of [1440, 768, 640, 639, 390, 320]) {
       await page.getByRole('button', { name: '閉じる', exact: true }).focus()
       await page.keyboard.press('Space')
       await expect(page.getByRole('checkbox')).toHaveCount(0)
-      await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
+      await page
+        .getByRole('button', { name: '都道府県を選ぶ', exact: true })
+        .click()
       await expect(
         page.getByRole('checkbox', { name: '東京都', exact: true }),
       ).toBeChecked()
@@ -121,7 +126,7 @@ test('resize: 閉じたスマホ→640pxは一覧、隠れるフォーカスを�
   await tokyo.check()
   await tokyo.focus()
   await page.setViewportSize({ width: 639, height: 1000 })
-  const open = page.getByRole('button', { name: '都道府県を選ぶ' })
+  const open = page.getByRole('button', { name: '都道府県を選ぶ', exact: true })
   await expect(page.getByRole('checkbox')).toHaveCount(0)
   await expect(open).toBeFocused()
   await expect(open).toHaveAttribute('aria-expanded', 'false')
@@ -175,7 +180,7 @@ test('スマホ: closed中も取得し、開くとskeleton、失敗と再試行�
     )
   })
   await page.goto('/')
-  const open = page.getByRole('button', { name: '都道府県を選ぶ' })
+  const open = page.getByRole('button', { name: '都道府県を選ぶ', exact: true })
   const close = page.getByRole('button', { name: '閉じる', exact: true })
   await expect(open).toHaveAttribute('aria-expanded', 'false')
   await expect.poll(() => attempts).toBe(1)

@@ -7,8 +7,9 @@ const props = withDefaults(
     label: string
     disabled?: boolean
     type?: 'button' | 'submit' | 'reset'
+    variant?: 'primary' | 'secondary'
   }>(),
-  { disabled: false, type: 'button' },
+  { disabled: false, type: 'button', variant: 'primary' },
 )
 
 const emit = defineEmits<{ click: [event: MouseEvent] }>()
@@ -20,7 +21,8 @@ function handleClick(event: MouseEvent) {
 
 <template>
   <button
-    class="button button-primary control-label"
+    class="button control-label"
+    :class="`button-${variant}`"
     :type="type"
     :disabled="disabled"
     @click="handleClick"
@@ -47,6 +49,16 @@ function handleClick(event: MouseEvent) {
 
 .button-primary:hover:not(:disabled) {
   background-color: var(--color-action-hover);
+}
+
+.button-secondary {
+  color: var(--color-action-default);
+  background-color: var(--color-bg-surface);
+  border: var(--stroke-1) solid var(--color-border-default);
+}
+
+.button-secondary:hover:not(:disabled) {
+  background-color: var(--color-action-subtle);
 }
 
 .button:disabled {

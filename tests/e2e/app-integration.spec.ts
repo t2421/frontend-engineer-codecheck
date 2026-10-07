@@ -51,9 +51,11 @@ for (const width of [1440, 768, 390, 320]) {
     await captureScreenshot(page, testInfo, `app-initial-${width}.png`, true)
     if (width < 640) {
       await expect(
-        page.getByRole('button', { name: '都道府県を選ぶ' }),
+        page.getByRole('button', { name: '都道府県を選ぶ', exact: true }),
       ).toHaveAttribute('aria-expanded', 'false')
-      await page.getByRole('button', { name: '都道府県を選ぶ' }).focus()
+      await page
+        .getByRole('button', { name: '都道府県を選ぶ', exact: true })
+        .focus()
       await page.keyboard.press('Enter')
     }
     await expect(page.getByRole('checkbox')).toHaveCount(47)
@@ -109,7 +111,9 @@ for (const width of [1440, 768, 390, 320]) {
         `app-selected-collapsed-${width}.png`,
         true,
       )
-      await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
+      await page
+        .getByRole('button', { name: '都道府県を選ぶ', exact: true })
+        .click()
     }
     await page.getByRole('checkbox', { name: '北海道', exact: true }).uncheck()
     await expect
@@ -277,7 +281,9 @@ for (const width of [1440, 320]) {
     try {
       await page.goto('/')
       if (width < 640)
-        await page.getByRole('button', { name: '都道府県を選ぶ' }).click()
+        await page
+          .getByRole('button', { name: '都道府県を選ぶ', exact: true })
+          .click()
       await page.getByRole('checkbox', { name: '北海道', exact: true }).check()
       await expect(page.locator('canvas')).toBeVisible()
       const initial = await chartState(page)
