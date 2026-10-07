@@ -37,3 +37,5 @@ Node 24.16.0／native pnpm 12.8.1、最新main（05c8718、PR #33反映）を使
 PR #37反映後のmain（2867e3c）を取り込み、検証fixtureの再試行2操作と部品テストのaction slotは共通Buttonを使用する。fixtureの独自ボタンCSSは削除した。StatusMessage本体のslot設計と通信処理を持たない責務は維持する。
 
 置換後の検証：check（lint・styles・format・types）、Vitest 20件、Chrome E2E 9件、build成功。StatusMessageと共通Buttonの組み合わせで、マウスクリック・Tab／Enter／Space・disabled時のクリック通知抑止とTabスキップを確認した。
+
+自動Previewの既存ビルド対象に合わせ、状態確認fixtureは`tests/e2e/fixtures/status-message.html`へ配置する。通常の本番buildには含めない。
