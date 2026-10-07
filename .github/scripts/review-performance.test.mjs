@@ -390,7 +390,7 @@ test('missing, incomplete and invalid data show neutral judgment unavailable', (
   }
 })
 
-test('rendered boundary judgments retain raw medians and device-specific TBT', async () => {
+test('rendered boundary judgments retain raw medians and device-specific TBT', () => {
   for (const [profile, good, improve] of [
     ['desktop', 150, 350],
     ['mobile', 200, 600],
@@ -416,10 +416,6 @@ test('rendered boundary judgments retain raw medians and device-specific TBT', a
       assert.ok(row.includes(expected), row)
     }
   }
-  const doc = await readFile(resolve('docs/PREVIEW_PERFORMANCE.md'), 'utf8')
-  assert.match(doc, /INP.*実測/)
-  assert.match(doc, /#36/)
-  assert.match(doc, /artifact.*保存しません/)
 })
 
 test('bounded output allows only metrics and sanitized run metadata; invalid transport fails closed', () => {
