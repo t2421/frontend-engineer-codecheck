@@ -28,6 +28,7 @@ const population = {
 }
 const limit = vi.fn()
 const upstream = vi.fn<typeof fetch>()
+const diagnosticLog = vi.fn()
 const env = { API_RATE_LIMITER: { limit }, YUMEMI_API_KEY: secret }
 
 function request(path = prefecturesPath, method = 'GET') {
@@ -44,10 +45,24 @@ function request(path = prefecturesPath, method = 'GET') {
 }
 
 beforeEach(() => {
+  diagnosticLog.mockReset()
+  vi.spyOn(console, 'error').mockImplementation(diagnosticLog)
   limit.mockReset().mockResolvedValue({ success: true })
   upstream.mockReset().mockResolvedValue(Response.json(prefectures))
   vi.stubGlobal('fetch', upstream)
 })
+
+function expectDiagnostic(status: number, code: string) {
+  expect(diagnosticLog).toHaveBeenCalledTimes(1)
+  const call = diagnosticLog.mock.calls[0]!
+  expect(call).toHaveLength(1)
+  expect(typeof call[0]).toBe('string')
+  expect(JSON.parse(call[0])).toEqual({ status, code })
+  expect(call[0]).not.toContain(secret)
+  expect(call[0]).not.toContain('https://')
+  expect(call[0]).not.toContain('X-API-KEY')
+  expect(call[0]).not.toContain('browser-credential')
+}
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -83,6 +98,7 @@ for (const [path, body] of [
       },
     )
     expect(vi.getTimerCount()).toBe(0)
+    expect(diagnosticLog).not.toHaveBeenCalled()
   })
 }
 
@@ -112,6 +128,7 @@ test.each([
     expect(await response.json()).toEqual({ error: expect.any(String) })
     if (status === 405) expect(response.headers.get('Allow')).toBe('GET')
     expect(upstream).not.toHaveBeenCalled()
+    expect(diagnosticLog).not.toHaveBeenCalled()
   },
 )
 
@@ -183,34 +200,46 @@ test.each([302, 400, 403, 404, 429, 500])(
     expect([...response.headers].flat().join()).not.toContain(secret)
     expect(response.headers.get('Location')).toBeNull()
     expect(upstream).toHaveBeenCalledTimes(1)
+    expectDiagnostic(status, 'UPSTREAM_HTTP_ERROR')
   },
 )
 
 test.each([
-  () => Promise.reject(new Error(secret)),
-  () => Promise.resolve(new Response(secret)),
-  () => Promise.resolve(Response.json({ message: secret, result: null })),
-  () => Promise.resolve(Response.json({ message: null, result: { secret } })),
-  () =>
-    Promise.resolve(
-      new Response(
-        JSON.stringify({ message: null, result: { secret } }).replaceAll(
-          't',
-          '\\u0074',
+  [() => Promise.reject(new Error(secret)), 0, 'UPSTREAM_EXCEPTION'],
+  [() => Promise.resolve(new Response(secret)), 200, 'UPSTREAM_JSON_ERROR'],
+  [
+    () => Promise.resolve(Response.json({ message: secret, result: null })),
+    200,
+    'UPSTREAM_RESPONSE_REJECTED',
+  ],
+  [
+    () => Promise.resolve(Response.json({ message: null, result: { secret } })),
+    200,
+    'UPSTREAM_RESPONSE_REJECTED',
+  ],
+  [
+    () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ message: null, result: { secret } }).replaceAll(
+            't',
+            '\\u0074',
+          ),
         ),
       ),
-    ),
+    200,
+    'UPSTREAM_RESPONSE_REJECTED',
+  ],
 ])(
   'sanitizes network, JSON, API envelope and reflected Secret failures',
-  async (implementation) => {
-    const errorLog = vi.spyOn(console, 'error')
+  async (implementation, status, code) => {
     const warnLog = vi.spyOn(console, 'warn')
     const log = vi.spyOn(console, 'log')
     upstream.mockImplementation(implementation)
     const response = await worker.fetch(request(), env)
     expect(response.status).toBe(502)
     expect(await response.text()).not.toContain(secret)
-    expect(errorLog).not.toHaveBeenCalled()
+    expectDiagnostic(status, code)
     expect(warnLog).not.toHaveBeenCalled()
     expect(log).not.toHaveBeenCalled()
   },
@@ -232,6 +261,7 @@ for (const phase of ['headers', 'body']) {
     expect(await response.json()).toEqual({ error: 'UPSTREAM_TIMEOUT' })
     expect(upstream.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
     expect(vi.getTimerCount()).toBe(0)
+    expectDiagnostic(phase === 'headers' ? 0 : 200, 'UPSTREAM_TIMEOUT')
   })
 }
 
@@ -246,6 +276,68 @@ test('rejects reflected Secrets containing JSON special characters', async () =>
   })
   expect(response.status).toBe(502)
   expect(await response.json()).toEqual({ error: 'UPSTREAM_ERROR' })
+  expectDiagnostic(200, 'UPSTREAM_RESPONSE_REJECTED')
+  expect(diagnosticLog.mock.calls.flat().join()).not.toContain(specialKey)
+})
+
+test.each([
+  [
+    new TypeError(`${secret} https://private.test X-API-KEY`),
+    'UPSTREAM_TYPE_ERROR',
+  ],
+  [new DOMException(secret, 'AbortError'), 'UPSTREAM_DOM_EXCEPTION'],
+  [
+    new Error(secret, {
+      cause: { body: secret, headers: { Authorization: secret } },
+    }),
+    'UPSTREAM_EXCEPTION',
+  ],
+  [secret, 'UPSTREAM_EXCEPTION'],
+  [
+    {
+      get name() {
+        throw new Error('must not inspect arbitrary exception properties')
+      },
+      message: secret,
+    },
+    'UPSTREAM_EXCEPTION',
+  ],
+])(
+  'classifies exceptions without reading or logging their free-form properties',
+  async (error, code) => {
+    upstream.mockRejectedValue(error)
+    const response = await worker.fetch(request(), env)
+    expect(response.status).toBe(502)
+    expect(await response.json()).toEqual({ error: 'UPSTREAM_ERROR' })
+    expectDiagnostic(0, code)
+  },
+)
+
+test('an HTTP body cancellation failure retains the original upstream status and classification', async () => {
+  const upstreamResponse = new Response(secret, { status: 403 })
+  vi.spyOn(upstreamResponse.body!, 'cancel').mockRejectedValue(
+    new TypeError(secret),
+  )
+  upstream.mockResolvedValue(upstreamResponse)
+  const response = await worker.fetch(request(), env)
+  expect(response.status).toBe(502)
+  expectDiagnostic(403, 'UPSTREAM_HTTP_ERROR')
+})
+
+test('a body-read failure retains its received status without printing its exception', async () => {
+  upstream.mockResolvedValue(
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new TypeError(secret))
+        },
+      }),
+      { status: 201 },
+    ),
+  )
+  const response = await worker.fetch(request(), env)
+  expect(response.status).toBe(502)
+  expectDiagnostic(201, 'UPSTREAM_TYPE_ERROR')
 })
 
 test('rate rejection precedes method, query and Secret validation', async () => {
