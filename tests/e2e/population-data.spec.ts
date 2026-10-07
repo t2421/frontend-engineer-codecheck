@@ -11,7 +11,7 @@ for (const width of [1440, 768, 390]) {
       requests.push(route.request().url())
       return route.fulfill({ json: populationResponse() })
     })
-    await page.goto('/tests/fixtures/population-data.html')
+    await page.goto('/tests/e2e/fixtures/population-data.html?mode=proxy')
     const group = page.getByRole('radiogroup', { name: '人口区分' })
     const total = group.getByRole('radio', { name: '総人口', exact: true })
     await expect(total).toBeChecked()
@@ -67,7 +67,7 @@ test('HTTP失敗から再試行して現在の区分へ復帰（APIモック）'
       ? route.fulfill({ status: 503, json: { error: 'SERVICE_UNAVAILABLE' } })
       : route.fulfill({ json: populationResponse() }),
   )
-  await page.goto('/tests/fixtures/population-data.html')
+  await page.goto('/tests/e2e/fixtures/population-data.html?mode=proxy')
   await page.getByRole('checkbox', { name: '北海道' }).check()
   await expect(page.getByRole('alert')).toContainText(
     'データを取得できませんでした',
@@ -93,9 +93,11 @@ test('解除後の遅延応答で表示県が復活しない（APIモック）',
     await gate
     await route.fulfill({ json: populationResponse() })
   })
-  await page.goto('/tests/fixtures/population-data.html')
+  await page.goto('/tests/e2e/fixtures/population-data.html?mode=proxy')
   await page.getByRole('checkbox', { name: '北海道' }).check()
-  await expect(page.getByRole('status')).toContainText('人口データを読み込み中')
+  await expect(
+    page.getByRole('status').filter({ hasText: '人口データを読み込み中' }),
+  ).toContainText('人口データを読み込み中')
   await page.screenshot({
     path: 'test-results/population-loading.png',
     fullPage: true,
@@ -112,4 +114,49 @@ test('解除後の遅延応答で表示県が復活しない（APIモック）',
     path: 'test-results/population-empty.png',
     fullPage: true,
   })
+})
+
+test('公開用fixtureは合成データで取得・再試行・遅延応答を確認でき、APIへ通信しない', async ({
+  page,
+}) => {
+  const requests: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/'))
+      requests.push(request.url())
+  })
+  await page.goto('/tests/e2e/fixtures/population-data.html')
+  await expect(
+    page.getByText('合成データによる確認画面です。実APIは使用しません。'),
+  ).toBeVisible({ timeout: 3000 })
+  await page
+    .getByRole('button', { name: '次の取得を失敗させる', exact: true })
+    .click()
+  await page.getByRole('checkbox', { name: '北海道' }).check()
+  await expect(page.getByRole('alert')).toContainText(
+    'データを取得できませんでした',
+  )
+  await page.getByRole('button', { name: '再読み込み', exact: true }).click()
+  await expect(page.getByLabel('後続表示へのデータ')).toContainText(
+    '"value":100',
+  )
+  await page.getByRole('radio', { name: '年少人口', exact: true }).check()
+  await expect(page.getByLabel('後続表示へのデータ')).toContainText(
+    '"value":101',
+  )
+  await page
+    .getByRole('button', { name: '次の取得を遅延させる', exact: true })
+    .click()
+  await page.getByRole('checkbox', { name: '東京都' }).check()
+  await expect(
+    page.getByRole('status').filter({ hasText: '人口データを読み込み中' }),
+  ).toContainText('人口データを読み込み中')
+  await page.getByRole('checkbox', { name: '東京都' }).uncheck()
+  await page
+    .getByRole('button', { name: '遅延応答を返す', exact: true })
+    .click()
+  await expect(page.getByLabel('後続表示へのデータ')).not.toContainText(
+    '東京都',
+  )
+  await expect(page.getByLabel('合成データ取得回数')).toHaveText('3')
+  expect(requests).toEqual([])
 })

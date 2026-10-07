@@ -1,5 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import StatusMessage from '../../src/shared/ui/StatusMessage.vue'
+import Button from '../../src/shared/ui/Button.vue'
 import PopulationDataPanel from '../../src/features/population/PopulationDataPanel.vue'
 import { parsePopulation } from '../../src/features/population/populationApi'
 import { populationResponse } from '../fixtures/population'
@@ -118,3 +120,34 @@ test.each(['resolve', 'reject'])(
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   },
 )
+
+test('共通StatusMessageの状態とaction slotで再試行し、成功時に表示データへ復帰する', async () => {
+  let reject!: (reason: Error) => void
+  const loader = vi
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise((_, j) => {
+          reject = j
+        }),
+    )
+    .mockResolvedValue(parsePopulation(populationResponse()))
+  const { wrapper } = render(loader, [])
+  expect(wrapper.getComponent(StatusMessage).props('state')).toBe('empty')
+  await wrapper.setProps({ selectedPrefectures: prefectures.slice(0, 1) })
+  expect(wrapper.getComponent(StatusMessage).props('state')).toBe('loading')
+  expect(wrapper.get('[aria-busy="true"]').text()).toContain(
+    '人口データを読み込み中',
+  )
+  reject(new Error('failed'))
+  await flushPromises()
+  expect(wrapper.getComponent(StatusMessage).props('state')).toBe('error')
+  await wrapper
+    .getComponent(StatusMessage)
+    .getComponent(Button)
+    .trigger('click')
+  await flushPromises()
+  expect(wrapper.findComponent(StatusMessage).exists()).toBe(false)
+  expect(wrapper.get('output').text()).toContain('"value":100')
+  expect(loader).toHaveBeenCalledTimes(2)
+})
