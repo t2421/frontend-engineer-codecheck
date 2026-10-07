@@ -1,154 +1,73 @@
-# 人口推移アプリ Design Doc
+# アプリの設計
 
-## 目的と範囲
+機能の受入条件は[PRD](./PRD.md)、画面の参照先は[デザインリンク](./DESIGN_LINKS.md)にまとめています。
 
-[PRD](./PRD.md)の利用体験を、状態の整合性と変更しやすさを保って実現するための実装方針。技術選定は[ADR](./ADR.md)、画面の参照先は[デザインリンク](./DESIGN_LINKS.md)に従う。本書は設計を示し、実装済みの機能を示すものではない。
+## 採用技術と構成
 
-対象は都道府県選択、人口区分切替、推移グラフ、読み込み・失敗・再試行。一画面の規模に合わせ、認証・DB・SSR・大きな状態管理基盤は設けない。
-
-## 全体構成
+Vue 3・Vite・TypeScriptのSPAを、公式Cloudflare ViteプラグインでWorkerとStatic Assetsとしてbuildします。グラフはChart.js単体、状態管理はVueのref・computed・composable。認証・DB・SSR・永続キャッシュは設けません。テストはVitest・Vue Test Utils・Playwright、品質チェックはESLint・Stylelint・Prettier・vue-tscです。固定版はpackage.jsonとlockfileで管理します。
 
 ```mermaid
 flowchart LR
-  UI[Vue SPA] -->|同一オリジン・GET 2本| W[API Proxy]
-  W -->|固定転送先・APIキー付与| API[API]
-  A[Workers Static Assets] -->|画面配信| UI
+  Assets[Workers Static Assets] --> UI[Vue SPA]
+  UI -->|同一オリジンGET| Proxy[Worker API Proxy]
+  Proxy -->|固定転送先・APIキー付与| API[指定API]
 ```
 
-Vue 3・Vite・TypeScriptの画面とAPI中継を、公式Viteプラグインを使うWorkers構成で扱う。依存は必要なものに絞り、Pinia・Chart.jsのVueラッパー・Storybookは追加しない。依存導入はpnpm 12.8.1と[既存の依存管理方針](./DEPENDENCY_SECURITY.md)に従う。
+| 場所                           | 役割                                                |
+| ------------------------------ | --------------------------------------------------- |
+| `src/App.vue`                  | loaderをページへ渡す入口                            |
+| `src/pages/PopulationPage.vue` | 画面の組み立て、選択県と人口区分の正本              |
+| `src/components/prefectures/`  | 一覧取得・検証、選択、開閉、一覧の状態表示          |
+| `src/components/population/`   | 人口取得・検証、県別cache、系列の導出、Chart.js描画 |
+| `src/components/shared/`       | 業務判断・通信を持たない汎用UI                      |
+| `src/styles/`                  | 共通トークン・汎用部品の基本スタイル                |
+| `worker/`                      | API要求検証、固定上流への中継、安全な失敗応答       |
+| `tests/`                       | 単体・部品・Chromeテスト、合成fixture               |
 
-## 役割と扱うデータ
+## 選択とデータ取得
 
-| 役割 | 担うこと |
-| --- | --- |
-| 汎用UI | チェックボックス、区分切替、案内・再試行などの表示と操作通知。取得処理や人口の業務判断を持たない。 |
-| ページの組み立てと選択 | PopulationPage が選択県と人口区分を管理し、既存パネルを直接組み立てる。App は loader を受け渡す。 |
-| 読み込みの管理 | Vue composable が県コードごとの取得済みデータと取得状態を管理し、ページの選択から系列・案内を導出する。 |
-| API取得（画面側） | API Proxyへデータを要求し、応答を検証して、人口データやエラーを画面で扱いやすい形へ整える。 |
-| API Proxy | 許可した要求だけを指定APIへ送り、APIキーの付与や安全なエラー応答を担う。 |
-| グラフ用データの作成 | 選択県・人口区分・取得済みの人口データから、グラフに渡すデータを作る。通信や描画は行わず、単独で検証できる。 |
-| グラフの描画・更新 | 小さなコンポーネントでChart.jsのグラフを生成・更新・破棄する。渡されたグラフ用データを表示し、選択や通信は管理しない。 |
+- 初期は県未選択・総人口。区分変更で県を維持し、全解除で区分を維持します。未選択時は人口通信を行わず、PRDの選択案内を表示します。
+- 一覧はAPI順にチェックボックスを生成します。取得中は操作不可の47枠スケルトン、失敗時は再読み込みを表示します。
+- 640px未満は県一覧を初期closedにし、開閉状態と選択を維持します。640px以上は一覧を表示します。閉じた一覧はTab・支援技術の対象から外し、幅変更で操作が隠れる場合だけフォーカスを移します。
+- 人口は県コード単位で全4区分を画面滞在中にcacheします。成功済み・取得中の要求を重複させず、区分変更では再取得しません。再試行は現在選択中の失敗県だけを取得します。
+- 系列・件数・案内は現在の選択から導出します。解除後の応答で選択を復活させず、古い要求やscope終了後の応答で画面状態を上書きしません。追加取得中・一部失敗でも成功済み系列を保持します。
+- 画面側のGETは本文読取を含む15秒timeout。一覧はcode/name・重複・空応答、人口は全4ラベル・年重複・非負整数値・任意rateを検証し、内部例外や応答本文を画面へ出しません。[APIの契約](./API_PROXY.md)を守ります。
 
-## 状態と更新の方針
+## 共通UIの契約
 
-- PopulationPage の選択県のコード集合と人口区分を表示対象の唯一の正本にする。取得済みデータと取得状態は別に管理し、グラフ・件数・案内はcomputedで導出する。UIやChart.js側に同じ選択状態を複製しない。
-- 初期状態は県未選択・総人口。区分変更では県を維持し、全解除では区分を維持する。県が未選択ならグラフ領域に「都道府県を選択すると、人口の推移を確認できます」を表示する。
-- 人口構成の取得結果は県コード単位で画面滞在中に再利用する。成功済み・取得中の要求を重複させず、区分変更だけで再取得しない。失敗した県は再試行操作または解除後の再選択で再取得する。永続化や複雑なキャッシュ基盤は設けない。
-- 選択解除後に応答が届いても選択集合を書き換えない。最新の要求に対応する応答だけが取得状態を更新し、グラフは常に現在の選択集合から導出する。連続操作・再試行で古い応答が新しい状態を上書きすることを防ぐ。
-- 一覧取得中は操作できないスケルトンを表示。人口取得中・取得失敗を識別できる表示と再試行を用意し、成功後は一覧またはグラフへ戻す。既存グラフがある追加取得中はコンパクトな案内にし、別県の取得中も失敗案内と再試行操作を維持する。専用の県別再試行 UI は設けない。
+Checkboxは`label`・booleanの`v-model`・任意の`disabled`を受け、操作で`update:modelValue`と`change`を各1回通知します。親更新やdisabled時は通知しません。ネイティブinput/labelのTab・Space・ラベルクリックを使います。
 
-## 主要処理のシーケンス
+SingleSelectGroupはラジオ群として1区分を選択し、ラベル・checked・矢印キー操作をネイティブHTMLで扱います。Buttonはネイティブbuttonで、disabled時は通知しません。
 
-図はユーザー・Webアプリ・API Proxy・APIのやり取りを示す。アプリ内部の処理は自己メッセージにまとめ、実装の役割分担は上の表に示す。
+StatusMessageは`state: empty | loading | error`・`title`・任意`description`・`headingLevel`（既定h3）を受け、操作は`action` slotへ渡します。再試行と成功後の表示は親の責務です。未選択/loadingはpolite status、errorはalertで通知し、読み上げ領域をbusy領域と操作slotの外に置きます。装飾アイコンは隠し、loading回転はreduced motionで停止します。
 
-### 初期表示と都道府県一覧取得
+CheckboxSkeletonは装飾専用で操作要素を持ちません。一覧用スケルトンは47枠と1つの読み込みstatusを表示し、アニメーションは行いません。
 
-```mermaid
-sequenceDiagram
-  actor User as ユーザー
-  participant App as Webアプリ
-  participant Proxy as API Proxy
-  participant API as API
-  User->>App: 画面を開く
-  App->>App: 県未選択・総人口で初期化
-  App-->>User: 選択案内・一覧読み込み中のスケルトン
-  App->>Proxy: 都道府県一覧GET
-  Proxy->>API: APIキーを付けて中継
-  API-->>Proxy: 都道府県一覧
-  Proxy-->>App: 一覧応答
-  App->>App: 応答を検証し、一覧と読み込み状態を更新
-  App-->>User: チェックボックスを表示（県は自動選択しない）
-```
+## グラフ
 
-### 都道府県選択・取得再利用・解除
+元の全データ点を数値の年・人数で保持し、県ごとに年が異なっても配列indexで対応させません。初回にChartを生成、更新は同じinstanceへ`update('none')`、全解除・unmountで破棄します。Canvas描画は実Chromeで確認します。
 
-```mermaid
-sequenceDiagram
-  actor User as ユーザー
-  participant App as Webアプリ
-  participant Proxy as API Proxy
-  participant API as API
-  User->>App: 県を選択
-  App->>App: 選択県を更新（同じ取得は重複しない）
-  alt 取得済みデータあり
-    App->>App: 現在の選択県・区分でグラフを更新
-  else 未取得
-    App-->>User: 人口読み込み中
-    App->>Proxy: 人口構成GET（県コード）
-    Proxy->>API: APIキーを付けて中継
-    opt 応答前に選択解除
-      User->>App: 県を解除
-      App->>App: 選択県から除外し、表示を更新
-      Note over App: 全解除時は区分維持・選択案内
-    end
-    API-->>Proxy: 人口構成
-    Proxy-->>App: 人口応答
-    App->>App: 応答を検証し、最新の要求だけ反映
-    App->>App: 現在の選択県・区分でグラフを更新
-  end
-  Note over App: 解除した県は描画対象に戻さない
-```
+横軸は年、縦軸の表示目盛りは万人、tooltipは桁区切り人数。640px未満の横軸目盛りは1960・1980・2000・2020年のうちデータ範囲内だけを表示し、元データを間引いたり偽の点を追加したりしません。
 
-### 人口区分の切替
+全系列は実線・直線補間・丸点です。県コード−1で47色の固定トークンへ対応し、選択順や再選択で色を変えません。Figmaの線種とは追加仕様により異なります。47色の判別可能性を保証せず、県名凡例・tooltip・視覚的に隠した県別年別のsemantic tableを併用します。可視の数値一覧は設けません。アニメーションは無効です。
 
-```mermaid
-sequenceDiagram
-  actor User as ユーザー
-  participant App as Webアプリ
-  User->>App: 人口区分を切り替える
-  App->>App: 区分を更新（選択県は維持）
-  App->>App: 取得済みデータでグラフを更新（再取得しない）
-  App-->>User: 新しい区分のグラフ、未選択なら選択案内
-  Note over App: 取得中のデータも到着時点の区分で表示
-```
+## 品質と制限
 
-### 取得失敗と再試行
+[アクセシビリティ基準](./ACCESSIBILITY.md)に従い、ネイティブ操作・ラベル・状態通知・代替情報を用意します。PC・tablet・mobileの1440 / 768 / 390pxに加え320pxと境界幅でリフロー・47県・連続操作を確認します。
 
-```mermaid
-sequenceDiagram
-  actor User as ユーザー
-  participant App as Webアプリ
-  participant Proxy as API Proxy
-  participant API as API
-  App->>Proxy: 一覧または人口構成GET
-  Proxy->>API: 許可した要求を中継
-  API-->>Proxy: エラーまたはタイムアウト
-  Proxy-->>App: 安全なエラー応答
-  App-->>User: 読み込み終了・失敗表示・再試行操作
-  User->>App: 再試行
-  App-->>User: 読み込み中
-  App->>Proxy: 対象データを再取得
-  Proxy->>API: 許可した要求を中継
-  alt 成功
-    API-->>Proxy: データ
-    Proxy-->>App: データ応答
-    App->>App: 応答を検証し、最新の要求だけ反映
-    App-->>User: 読み込み終了・現在の選択に対応する一覧またはグラフ
-  else 再び失敗
-    API-->>Proxy: エラーまたはタイムアウト
-    Proxy-->>App: 安全なエラー応答
-    App-->>User: 読み込み終了・失敗表示・再試行操作
-  end
-```
+API中継は固定GET 2本のみ。APIキーはWorkerの実行時Secretで保持し、ブラウザへ渡しません。Rate LimitはIP単位200回/10秒の近似制限で、日次利用量や上流割当量を保証しません。[環境とSecrets](./CLOUDFLARE_ENVIRONMENT.md)を参照してください。WorkersはNode.jsと完全互換ではないため、利用APIの互換性とプランの制限を確認します。
 
-## API Proxyとセキュリティ
+実APIの値・失敗/retry、共有IPへの影響、スクリーンリーダーの読み上げ、操作時INPは実環境で別途確認します。モック・axe・静的UIのLighthouse成功だけでは完了としません。
 
-API ProxyはCloudflare Worker上で動作し、中継は都道府県一覧と人口構成の固定GET 2本に限定する。メソッド・パス・県コードを検証し、任意URL・不要なパラメータ・ブラウザからの認証ヘッダーを転送しない。上流への通信にはタイムアウトを設け、失敗を画面が扱えるエラーへ変換する。上流の内部情報や秘密値をレスポンス・ログへ出さない。
+## ライセンスと出典
 
-APIキーは実行時にWorker Secretsへ保持し、CIから設定する場合はGitHub Secretsを利用する。画面の配信物には含めない。公開中継の悪用対策は秘密値の保管とは別に扱い、公開前にアクセス制御・利用量制限を確認する。CI・配備の具体的なトリガーはIssue #12で扱う。
+採用ツール本体の公式LICENSEを確認した。
 
-API中継はIP単位で10秒200回を暫定上限とし、超過を検出した場合は上流APIを呼ばず429を返す。[Cloudflare Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)は拠点ごとの近似制限であり、厳密な全拠点合計の割当量や費用上限を保証しない。通常の47県選択への影響、共有IPの利用者への影響、上流APIの制限を公開前に確認する。
+- MIT：[Vue](https://github.com/vuejs/core/blob/main/LICENSE)、[Vite](https://github.com/vitejs/vite/blob/main/LICENSE)、[Chart.js](https://github.com/chartjs/Chart.js/blob/master/LICENSE.md)、[Vitest](https://github.com/vitest-dev/vitest/blob/main/LICENSE)、[Vue Test Utils](https://github.com/vuejs/test-utils/blob/main/LICENSE)。
+- MIT：[ESLint](https://github.com/eslint/eslint/blob/main/LICENSE)、[eslint-plugin-vue](https://github.com/vuejs/eslint-plugin-vue/blob/master/LICENSE)、[Prettier](https://github.com/prettier/prettier/blob/main/LICENSE)、[Stylelint](https://github.com/stylelint/stylelint/blob/main/LICENSE)、[vue-tsc](https://github.com/vuejs/language-tools/blob/master/LICENSE)。
+- Apache-2.0：[TypeScript](https://github.com/microsoft/TypeScript/blob/main/LICENSE.txt)、[Playwright](https://github.com/microsoft/playwright/blob/main/LICENSE)。
+- Cloudflare Viteプラグイン：[公式package.json](https://github.com/cloudflare/workers-sdk/blob/main/packages/vite-plugin-cloudflare/package.json)の宣言はMITで、リポジトリの[LICENSE-MIT](https://github.com/cloudflare/workers-sdk/blob/main/LICENSE-MIT)も確認した。
 
-## 表示と操作
+アクセシビリティ検査の`@axe-core/playwright`・axe-coreはMPL-2.0です。[公式ライセンス](https://github.com/dequelabs/axe-core/blob/develop/LICENSE)を参照してください。依存更新・配布時は推移依存を含め必要なライセンス条件を確認します。
 
-PC・タブレット・スマートフォンで領域の配置とグラフサイズを調整し、固定画面を縮小するだけにしない。47県まで選べる前提で、凡例・操作部品の折返しと連続操作時の読みやすさを確認する。県と線の対応を安定させ、色だけに頼らず名称でも識別できるようにする。
-
-操作にはラベルとキーボード操作を備え、選択・展開・失敗などの状態をテキストでも伝える。Chart.jsのCanvasには説明を付け、人口区分と県・線の対応を画面側でも示す。県別・年別の semantic table は視覚的に隠して支援技術へ提供し、可視の数値一覧は設けない。
-
-## 検証方針
-
-TDDで、グラフ用データの作成・API取得（画面側）・API Proxy・選択と読み込みの管理をVitest、部品の操作と表示をVue Test Utilsで検証する。標準機能のAPIモックを使い、正常・失敗・再試行に加え、解除後の遅延応答と区分切替時の選択維持を確認する。
-
-PlaywrightとGoogle Chrome最新版で、PRDの操作、各画面幅、Chart.jsの実描画・更新・破棄を確認する。jsdomでCanvas描画成功を判定しない。実APIとの契約一致はモックとは別に確認する。ESLint・Prettier・Stylelintとvue-tscの型チェックも実行する。
-
-参考：[Vueの状態管理](https://vuejs.org/guide/scaling-up/state-management.html)、[composable](https://vuejs.org/guide/reusability/composables.html)、[Chart.js API](https://www.chartjs.org/docs/latest/developers/api.html)、[Workersの推奨事項](https://developers.cloudflare.com/workers/best-practices/workers-best-practices/)。
+設計の参照：[Vue composable](https://vuejs.org/guide/reusability/composables.html)、[Chart.js API](https://www.chartjs.org/docs/latest/developers/api.html)、[Workers Vue構成](https://developers.cloudflare.com/workers/framework-guides/web-apps/vue/)。

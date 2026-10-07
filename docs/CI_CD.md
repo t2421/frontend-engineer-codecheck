@@ -1,37 +1,61 @@
 # CI/CD
 
-GitHub Actionsで変更を確認し、mainのアプリを必要なときだけCloudflareへ公開します。
+## workflowの役割
 
-| ワークフロー          | いつ動くか                                                                    | 何をするか                                                                                                                                                                             | 失敗したら                                                                                                                                                   |
-| --------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Checks**            | PRの作成・更新・再開、mainへのpush、手動実行、Deploy productionからの呼び出し | コードの整形・lint・型、単体テスト、Chromeでの画面テスト、公開用buildを確認します。Wranglerのdry-runで配備できる構成か調べ、依存パッケージの脆弱性も監査します。実際の公開はしません。 | チェックが失敗します。Chromeテスト実行時は成功・失敗とも画面テストのHTML・axe JSON（失敗時traceを含む）、監査は成功・失敗ともテキストログを7日間保存します。 |
-| **Deploy production** | mainを選んで手動実行したときだけ                                              | 同じcommitでChecksを実行し、品質・テスト・監査がすべて成功したら、アプリをbuildしてCloudflareへ公開します。                                                                            | Checksに失敗すると公開へ進みません。必須Secretsがない場合も公開前に停止します。main以外を選ぶと処理をskipします。                                            |
+| workflow / ファイル                                                     | トリガー                                    | 役割                                                                                                 |
+| ----------------------------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Checks** / `checks.yml`                                               | PR、main push、手動、workflow呼出し         | lint・整形・型・unit・Chrome/axe・build・Wrangler dry-run・全severity監査。公開しない                |
+| **Review assets** / `review-build.yml`                                  | 同一repoのPR作成・push・reopen              | Secretなしでアプリの静的UIをbuildし、review-assetsを3日保存                                          |
+| **Publish review** / `review-publish.yml`                               | Review assets成功、同一repo PRのclose/merge | 最新open PRの成果物をPreview公開・URL/参考性能コメント更新。close/merge時に削除                      |
+| **Deploy production** / `deploy.yml`                                    | mainを選ぶ手動実行                          | 同じcommitのChecks成功後、production environmentから本番へ公開                                       |
+| **Diagnose Cloudflare metadata** / `cloudflare-metadata-diagnostic.yml` | mainを選ぶ手動実行                          | production SecretsでCloudflare metadataをGET診断。build・deploy・Secret変更・上流API呼出しは行わない |
 
-両ワークフローは共通のsetupで、リポジトリに指定したNodeとpnpmを用意し、lockfileどおりに依存を導入します。PRチェックには公開用のSecretsを渡しません。
+ファイルは`.github/workflows/`にあります。Checksの共通setupは固定Node/pnpmでfrozen installします。PRコードのbuild/testには公開Secretsを渡しません。[監査例外](./DEPENDENCY_SECURITY.md)以外の指摘と通信失敗はChecksを失敗させ、本番公開を止めます。
 
-## 手動で公開する
+## PR Preview
 
-事前にGitHubの`production` environmentへ次のEnvironment secretsを設定します。API tokenは対象Workerの公開に必要な権限へ絞り、秘密値はリポジトリやログへ書きません。
+Previewはアプリ全体の静的UI専用で、Worker/API・Secrets・本番bindingは含めません。`tests/preview/`の部品ページも公開しません。URLを知っている人は閲覧できるため機密情報を含めないでください。実API成功の確認には本番またはローカルWorkerを使用します。
 
-- `CLOUDFLARE_API_TOKEN`：Cloudflareの公開用API token
-- `CLOUDFLARE_ACCOUNT_ID`：公開先のCloudflare account ID
+`build-review.mjs`はUIを`/`・`/app/`・`/performance/<head SHA>/`へ出力します。publish jobはmain側コードで成果物をデータとして扱い、PRコードをcheckout・実行しません。`--ignore-base-config`でPreview Base設定も無視します。fork PR・古いhead・closed PRの成果物は公開しません。
 
-1. GitHubの **Actions → Deploy production → Run workflow** を開き、branchに **main** を選びます。
-2. Checksが成功し、`production`の承認が必要な場合はその承認が済むと公開します。
-3. 実行ログに出る公開URLで画面と深いSPA URLを確認します。現在のAPI proxyは未実装のため、`/api/*`の404は想定どおりです。
+PRごとの`pr-番号`URLとbotコメントを更新します。公開前にSHA別HTMLを確認し、公開後は同じSHA URLだけを最大10回・全体45秒で到達確認します。200 HTML以外は失敗とし、別commitへfallbackしません。close時削除が失敗した場合はcleanup jobを再実行するか、対象を確認して次を実行します。
 
-本番は手動公開です。PRのUI Previewは[PR #43](https://github.com/t2421/frontend-engineer-codecheck/pull/43)の専用workflowで扱います（#43のmerge後に有効）。[環境設定・Secrets別作業・公開の完了条件](./CLOUDFLARE_ENVIRONMENT.md)を参照してください。人口APIのキーは公開用tokenとは別のWorker Secretとして扱います。
+```sh
+pnpm exec wrangler preview delete --config wrangler.review.jsonc --name pr-番号 --skip-confirmation
+```
 
-## 監査の既知の例外
+[Cloudflare Previews](https://developers.cloudflare.com/workers/previews/)を参照してください。
 
-Stylelint経由のbraces High **GHSA-vfj7-8cjw-p6xm**だけを、承認済みの`audit.ignore`で例外にしています。通常の依存更新で解消できず、固定lintパターンに限定してリスクを受容したためです。脆弱性は未解消で、ログには`1 ignored: 1 high`と表示されます。
+### 参考性能
 
-管理者は`t2421`、見直し日は**2026-10-14**です。修正版や依存経路を確認し、解消後に例外を削除します。ほかの脆弱性や監査の通信失敗はチェックを失敗させ、公開も止めます。詳しいリスクは[品質チェック](./QUALITY_CHECKS.md)を参照してください。
+Secret・PR書込権限のないmeasure jobでLighthouse CIをPC/mobile各3回実行し、LCP・CLS・TBTの中央値、条件、SHA、版、時刻、失敗状態を専用コメントへ記録します。計測結果を受け取るコメントjobはmainコードで検証済みJSONを読み、PRコードを実行しません。HTML/JSONの性能レポートはrunnerの一時ファイルで、artifactには保存しません。
 
-## 失敗を確認・再実行する
+PCは1350×940 / RTT 40ms / 10240Kbps / CPU 1倍、mobileは412×823 / RTT 150ms / 1638.4Kbps / CPU 4倍。通信・CPUはsimulate、各runでcache/storageをリセットします。
 
-Actionsの失敗したstepのログを確認します。画面テストは`playwright-results`、監査は`dependency-audit`のartifactも使えます。修正はPRへpushすると再チェックされます。同じcommitをやり直す場合は対象runの **Re-run failed jobs** または **Re-run all jobs** を選びます。公開をやり直す場合はDeploy productionをmainから改めて実行します。
+| 指標                                                                                              | 良好   | 改善が必要  | 不良   |
+| ------------------------------------------------------------------------------------------------- | ------ | ----------- | ------ |
+| [LCP](https://web.dev/articles/lcp)                                                               | ≤2.5秒 | >2.5〜4秒   | >4秒   |
+| [CLS](https://web.dev/articles/cls)                                                               | ≤0.1   | >0.1〜0.25  | >0.25  |
+| [TBT PC](https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time) | ≤150ms | >150〜350ms | >350ms |
+| TBT mobile                                                                                        | ≤200ms | >200〜600ms | >600ms |
 
-## アクセシビリティ自動検査
+3指標の最も厳しい区分を参考表示します。欠損・失敗・3回未完了は判定不可です。閾値assertやmergeブロックはなく、静的UIのラボ値を実ユーザー評価・操作時INP・実API待ちの確認と区別します。[LHCI設定](https://googlechrome.github.io/lighthouse-ci/docs/configuration.html)を参照してください。
 
-PRごとの`pnpm test:e2e`にaxeによるWCAG A・AA検査を含み、違反があればChecksを失敗させます。判定不能の`incomplete`もJSONへ保存して手動確認します。対象状態・追加手順・手動確認の残件は[アクセシビリティ検査](./ACCESSIBILITY.md)を参照してください。
+ローカルでは`pnpm test:review`でCIスクリプトを検証できます。UI buildは次のとおりです（必要に応じて`REVIEW_SHA`に40桁の対象SHAを指定）。
+
+```sh
+node .github/scripts/build-review.mjs
+python3 -m http.server 4173 --bind 127.0.0.1 --directory dist-review
+```
+
+## 本番公開
+
+[環境とSecrets](./CLOUDFLARE_ENVIRONMENT.md)を設定し、GitHub **Actions → Deploy production → Run workflow**で**main**を選びます。同じcommitのChecksが成功し、productionの保護設定による承認を満たすと公開します。main以外はskipし、必須Secrets不足は公開前に停止します。PR Preview公開と本番deployは別操作です。
+
+公開後は画面・深いSPA URL・同一オリジンGET 2本を確認します。実応答で47県・複数県・4区分の年/人口値を照合し、失敗/retry・Rate Limit・静的UIへの影響を確認してください。モック・dry-run・UI Preview成功だけでは実API確認を完了としません。
+
+## 失敗の確認
+
+Actionsの失敗stepとartifactを確認します。ChecksはChrome実行時のHTML・axe JSON・失敗traceを`playwright-results`、監査ログを`dependency-audit`として成功・失敗とも7日保存します。修正pushで再チェック、同じcommitの再実行は**Re-run failed jobs / Re-run all jobs**を使います。本番再公開はmainから手動実行します。
+
+Wranglerのmetadata読取に失敗した場合は**Diagnose Cloudflare metadata**をmainから実行します。serviceから環境を解決し、bindings・routes・domains・subdomain・environment・schedulesを固定Cloudflare originへGETします。redirect拒否・各要求10秒timeout。出力は分類・HTTP status・安全な整数error codeのみで、URL・header・本文・秘密値は保存しません。status 0はHTTP応答なし等、非zero終了は読取失敗です。一般的なWranglerエラーだけで権限不足と決めず、失敗した分類をもとに必要な修正を確認します。

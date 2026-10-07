@@ -1,8 +1,8 @@
 # アクセシビリティ検査と実装ルール
 
-[Issue #35](https://github.com/t2421/frontend-engineer-codecheck/issues/35)のうち、PRごとの自動検査を`pnpm test:e2e`で実行する。WCAG 2.2の適用可能なA・AA達成基準を参考にするが、自動検査の成功だけで準拠とは判定しない。
+PRごとの自動検査を`pnpm test:e2e`で実行する。WCAG 2.2の適用可能なA・AA達成基準を参考にするが、自動検査の成功だけで準拠とは判定しない。
 
-## 今回の対象
+## 検査対象
 
 | 対象                                             | 表示完了の確認                     | 検査状態                     |
 | ------------------------------------------------ | ---------------------------------- | ---------------------------- |
@@ -10,7 +10,7 @@
 | 既存PrefectureSelectorSkeleton・CheckboxSkeleton | statusの文言と47枠                 | 同じ4幅の部品fixture         |
 | 共通Button                                       | ラベル付きボタンの表示・無効状態   | 通常・hover・キーボードfocus |
 
-スケルトンは既存部品の独立fixtureで検査し、アプリの通信中状態を実装したものではない。初期画面は都道府県APIの契約に沿った固定モックで取得完了を待つ。県選択・全解除・スマホ開閉・一覧loading/error/retryは合成fixtureで1440/390/320pxを検査する。最新mainの人口グラフfixtureに対するempty・selected・elder・table・clearedの検査も維持する。実上流通信は自動検査の対象外。既存のスキップリンクとButtonのEnter / Space / Tab操作テストを維持する。
+スケルトンの非操作性・読み込み通知は独立fixtureで検査します。初期画面は都道府県APIの契約に沿った固定モックで取得完了を待つ。県選択・全解除・スマホ開閉・一覧loading/error/retryは合成fixtureで1440/390/320pxを検査する。人口グラフfixtureに対するempty・selected・elder・table・clearedの検査も維持する。実上流通信は自動検査の対象外。既存のスキップリンクとButtonのEnter / Space / Tab操作テストを維持する。
 
 ## 判定と成果物
 
@@ -42,6 +42,6 @@ Checksの`playwright-results`成果物にJSON、HTMLレポート、失敗時trac
 - [ ] グラフの県・系列・年・人口値を色やマウスだけに頼らず理解できること
 - [ ] 未実装・未確認・残る問題の影響と対応方針
 
-読み上げの自然さ、focusの使いやすさ、グラフ内容理解は自動検査だけでは確かめられない。今回のCI実装はIssue #35全体の手動確認を完了させるものではない。
+読み上げの自然さ、focusの使いやすさ、グラフ内容理解は自動検査だけでは確かめられない。自動検査成功を手動確認の完了とは扱わない。
 
-参考: [Playwright公式](https://playwright.dev/docs/accessibility-testing)、[axe公式API・タグ・結果](https://github.com/dequelabs/axe-core/blob/develop/doc/API.md)。依存はMPL-2.0の`@axe-core/playwright` 4.13.0（2026-08-11公開）とaxe-core 4.13.0を導入し、[pnpm方針](./DEPENDENCY_SECURITY.md)の7日待機・scripts停止・固定versionを維持する。
+参考: [Playwright公式](https://playwright.dev/docs/accessibility-testing)、[axe公式API・タグ・結果](https://github.com/dequelabs/axe-core/blob/develop/doc/API.md)。依存はMPL-2.0の`@axe-core/playwright` 4.13.0とaxe-core 4.13.0を導入し、[pnpm方針](./DEPENDENCY_SECURITY.md)の7日待機・scripts停止・固定versionを維持する。

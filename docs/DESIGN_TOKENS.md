@@ -4,7 +4,7 @@
 
 ## 参照元
 
-2026-10-06、Figma MCPのdesign context（画像を含む）とvariable definitionsで実値を確認した。
+Figmaの画面・部品・変数を参照します。
 
 - [PC 1440](https://www.figma.com/design/I5QdPGt1iIXNqda6KQG1r2?node-id=2-64)、[tablet 768](https://www.figma.com/design/I5QdPGt1iIXNqda6KQG1r2?node-id=31-1655)、[mobile 390](https://www.figma.com/design/I5QdPGt1iIXNqda6KQG1r2?node-id=2-65)：ページ共通の色・文字・余白。
 - [共通操作部品](https://www.figma.com/design/I5QdPGt1iIXNqda6KQG1r2?node-id=4-169)：操作色、hover・focus・disabled、角丸、線幅。
@@ -22,9 +22,9 @@
 | color-focus                                                     | #1558d6                     | キーボードフォーカス、操作部品                     |
 | color-disabled-bg / color-disabled-text                         | #e8edf2 / #6e7b88           | 無効状態、操作部品                                 |
 | color-status-error / color-status-error-bg                      | #b42318 / #fff2f0           | エラー表示、グラフ状態部品                         |
-| color-series-1 / color-series-2 / color-series-3                | #1558d6 / #087d75 / #ac5710 | Figmaの3系列。東京都・大阪府・北海道へ固定割当     |
+| color-series-1 / color-series-2 / color-series-3                | #1558d6 / #087d75 / #ac5710 | Figmaの3系列。県コード1〜3へ固定割当               |
 
-追加の実線・固定色の依頼に合わせ、`--color-series-4`〜`--color-series-47`を追加。これらはFigma変数ではなく、白背景とのコントラストを確保して選んだグラフ用の色です。全47県の割当・値・配色の限界は[人口グラフの追加変更](./POPULATION_CHART.md#実線固定色への追加変更)を参照してください。
+`--color-series-1`〜`--color-series-47`は県コード順の固定色です。先頭3色はFigma値、残り44色は追加仕様です。色だけの判別を保証せず、県名・tooltip・代替表を併用します。[グラフ仕様](./DESIGN.md#グラフ)を参照してください。
 
 ## 文字
 
@@ -69,16 +69,8 @@
 
 resetはbox-sizing、body・見出し・本文・figureの初期余白、フォーム文字設定だけに限定。ネイティブのフォーム外観・無効状態・リンク装飾は保持し、focus-visibleに確認済みの外側リングを設定する。横溢れを隠すoverflow指定はしない。
 
-App.vueは既存の最小起動画面のまま、重複するグローバル設定を削除し、scoped CSSでトークンを利用する。画面の配置・各幅のタイトル切替・checkbox・グラフは各Issueで実装する。
+共通部品の基本スタイルは`src/styles/`、画面配置と個別の調整は各Vueのscoped CSSで管理します。
 
-## 確認事項
+フォントは`'Noto Sans JP', sans-serif`を宣言し、外部配信・ファイル同梱は行いません。端末に未導入ならsans-serifへfallbackします。実フォントでの一致は別途確認が必要です。画面のbreakpointは640 / 1024px、県一覧の列数はcontainer queryで調整します。
 
-- Figmaはフォント名を示すが配信方法を指定していない。今回は`'Noto Sans JP', sans-serif`で宣言し、外部配信・フォントファイル追加はしない。端末に未導入ならsans-serifで表示される。フォント配信方法の確定と実フォントでの一致検証は後続実装に必要。
-- 1440 / 768 / 390は確認用画面幅。切替ブレークポイントは未指定なので推測したトークンを追加しない。
-- 系列は確認できた3色だけを定義。残りの県の色や線種を推測しない。
-
-## 検証
-
-共通CSS導入時にChromeで1440 / 768 / 390 / 320pxの最小起動画面の共通文字・背景・横溢れを確認済み。一時的なVue fixtureでscoped参照・フォーム文字継承・Tabの可視リング・Spaceでのチェック操作・disabledも確認した。これは実装時の確認記録であり、完成したアプリの検証結果ではない。
-
-CSS専用のテストと確認用画面は保持しない。既存の単体・Vue部品テストと最小起動画面のChrome E2E、Playwright設定は維持する。各画面幅の横溢れとキーボード操作は、後続のページ・部品実装時に実画面のE2Eで確認する。
+チェック・状態アイコンはFigma提供のSVGをローカル素材として保持します。一時URLを実装へ含めず、グラフの仮の線SVGは使用しません。
