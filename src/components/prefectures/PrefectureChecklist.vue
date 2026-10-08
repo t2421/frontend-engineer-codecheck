@@ -4,6 +4,7 @@ import Checkbox from '../shared/Checkbox.vue'
 import CheckboxSkeleton from '../shared/CheckboxSkeleton.vue'
 import StatusMessage from '../shared/StatusMessage.vue'
 import { prefectureFailure, type Prefecture } from './prefectureApi'
+import { PREFECTURE_COUNT } from './prefectureCode'
 
 withDefaults(
   defineProps<{
@@ -37,7 +38,7 @@ const emit = defineEmits<{
       </p>
       <div class="loading-list" aria-busy="true">
         <div class="prefecture-grid" aria-hidden="true">
-          <CheckboxSkeleton v-for="item in 47" :key="item" />
+          <CheckboxSkeleton v-for="item in PREFECTURE_COUNT" :key="item" />
         </div>
       </div>
     </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import SingleSelectGroup from '../shared/SingleSelectGroup.vue'
 import Button from '../shared/Button.vue'
 import StatusMessage, {
@@ -15,7 +16,7 @@ import {
   usePopulationData,
   type PopulationLoader,
   type PopulationStatus,
-} from './usePopulationData'
+} from '../../composables/usePopulationData'
 const props = defineProps<{
   selectedPrefectures: readonly SelectedPrefecture[]
   loader?: PopulationLoader
@@ -35,6 +36,8 @@ const { status, series, retry } = usePopulationData(
   category,
   props.loader,
 )
+// グラフが既に出ている間の読み込み・失敗は、グラフを隠さない小さな案内にする。
+const showsStatusBesideChart = computed(() => series.value.length > 0)
 const statusCopy: Record<
   StatusMessageState,
   { title: string; description: string }
@@ -66,7 +69,7 @@ const statusCopy: Record<
     <StatusMessage
       v-if="status !== 'ready'"
       :state="status"
-      :compact="series.length > 0"
+      :compact="showsStatusBesideChart"
       :title="statusCopy[status].title"
       :description="statusCopy[status].description"
     >

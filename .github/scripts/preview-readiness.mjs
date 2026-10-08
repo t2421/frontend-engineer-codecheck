@@ -2,17 +2,36 @@ import process from 'node:process'
 import { setTimeout } from 'node:timers/promises'
 import { URL, pathToFileURL } from 'node:url'
 
+const maxAttempts = 10
+const totalTimeoutMs = 45_000
+const requestTimeoutMs = 3000
+const retryDelayMs = 2000
+const retryableStatuses = new Set([404, 408, 429, 500, 502, 503, 504])
+const transientErrorNames = new Set(['TypeError', 'TimeoutError', 'AbortError'])
+
+function isHeadSha(value) {
+  return /^[a-f0-9]{40}$/.test(value)
+}
+
+function isBareHttpsOrigin(url) {
+  return (
+    url.protocol === 'https:' &&
+    !url.username &&
+    !url.password &&
+    url.pathname === '/' &&
+    !url.search &&
+    !url.hash
+  )
+}
+
+function isHtmlResponse(response) {
+  const contentType = response.headers.get('content-type') ?? ''
+  return /^text\/html(?:\s*;|$)/i.test(contentType)
+}
+
 export function previewAppUrl(baseUrl, sha) {
   const base = new URL(baseUrl)
-  if (
-    base.protocol !== 'https:' ||
-    base.username ||
-    base.password ||
-    base.pathname !== '/' ||
-    base.search ||
-    base.hash ||
-    !/^[a-f0-9]{40}$/.test(sha)
-  )
+  if (!isBareHttpsOrigin(base) || !isHeadSha(sha))
     throw new Error('Expected HTTPS Preview origin and exact head SHA')
   return `${base.origin}/performance/${sha}/`
 }
@@ -29,41 +48,39 @@ export async function waitForPreview(
   } = {},
 ) {
   const url = previewAppUrl(baseUrl, sha)
-  const deadline = now() + 45_000
-  const retryable = new Set([404, 408, 429, 500, 502, 503, 504])
-  for (let attempt = 1; attempt <= 10; attempt++) {
+  const deadline = now() + totalTimeoutMs
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const remaining = deadline - now()
     if (remaining <= 0) break
-    let status
+    let outcome
     try {
       const response = await request(url, {
         redirect: 'manual',
-        signal: globalThis.AbortSignal.timeout(Math.min(3000, remaining)),
+        signal: globalThis.AbortSignal.timeout(
+          Math.min(requestTimeoutMs, remaining),
+        ),
       })
       await response.body?.cancel()
       if (response.url !== url)
         throw new Error('Preview response URL differs from exact SHA URL')
-      status = response.status
-      if (status === 200) {
-        if (
-          !/^text\/html(?:\s*;|$)/i.test(
-            response.headers.get('content-type') ?? '',
-          )
-        )
+      outcome = response.status
+      if (response.status === 200) {
+        if (!isHtmlResponse(response))
           throw new Error('Preview response is not HTML')
         if (now() >= deadline) break
         return url
       }
-      if (!retryable.has(status))
-        throw new Error(`Preview returned non-retryable HTTP ${status}`)
+      if (!retryableStatuses.has(response.status))
+        throw new Error(
+          `Preview returned non-retryable HTTP ${response.status}`,
+        )
     } catch (error) {
-      if (!['TypeError', 'TimeoutError', 'AbortError'].includes(error.name))
-        throw error
-      status = error.name
+      if (!transientErrorNames.has(error.name)) throw error
+      outcome = error.name
     }
-    log(`Preview readiness ${attempt}/10: ${status}`)
-    const wait = Math.min(2000, deadline - now())
-    if (attempt === 10 || wait <= 0) break
+    log(`Preview readiness ${attempt}/${maxAttempts}: ${outcome}`)
+    const wait = Math.min(retryDelayMs, deadline - now())
+    if (attempt === maxAttempts || wait <= 0) break
     await delay(wait)
   }
   throw new Error(

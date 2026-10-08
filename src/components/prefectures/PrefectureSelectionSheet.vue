@@ -12,11 +12,11 @@ const props = defineProps<{
 }>()
 const open = defineModel<boolean>({ default: false })
 const emit = defineEmits<{ apply: [codes: number[]]; retry: []; closed: [] }>()
-const draftCodes = ref(new Set<number>())
+const draftCodes = ref<ReadonlySet<number>>(new Set())
 watch(
   open,
-  (value) => {
-    if (value) draftCodes.value = new Set(props.selectedCodes)
+  (isOpen) => {
+    if (isOpen) draftCodes.value = new Set(props.selectedCodes)
   },
   { immediate: true },
 )
@@ -28,11 +28,13 @@ const draftPrefectures = computed(() =>
 const draftNames = computed(() =>
   draftPrefectures.value.map((prefecture) => prefecture.prefName).join('、'),
 )
-function select(code: number, checked: boolean) {
-  if (checked) draftCodes.value.add(code)
-  else draftCodes.value.delete(code)
+function toggleDraft(code: number, checked: boolean) {
+  const next = new Set(draftCodes.value)
+  if (checked) next.add(code)
+  else next.delete(code)
+  draftCodes.value = next
 }
-function apply() {
+function applyDraft() {
   if (!open.value) return
   emit(
     'apply',
@@ -58,7 +60,7 @@ function apply() {
           :prefectures="prefectures"
           :selected-codes="draftCodes"
           :status="status"
-          @select="select"
+          @select="toggleDraft"
           @retry="emit('retry')"
         />
       </div>
@@ -67,7 +69,7 @@ function apply() {
         <Button
           :label="`${draftCodes.size} 都道府県をグラフに反映`"
           :disabled="status !== 'ready'"
-          @click="apply"
+          @click="applyDraft"
         />
       </div>
     </div>

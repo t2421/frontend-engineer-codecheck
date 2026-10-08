@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CheckboxSkeleton from '../shared/CheckboxSkeleton.vue'
+import { PREFECTURE_COUNT } from './prefectureCode'
 </script>
 
 <template>
@@ -13,7 +14,7 @@ import CheckboxSkeleton from '../shared/CheckboxSkeleton.vue'
       </header>
       <p role="status">都道府県一覧を読み込んでいます…</p>
       <div class="prefecture-skeleton-grid" aria-hidden="true">
-        <CheckboxSkeleton v-for="item in 47" :key="item" />
+        <CheckboxSkeleton v-for="item in PREFECTURE_COUNT" :key="item" />
       </div>
       <p class="prefecture-skeleton-footer">読み込み後に都道府県を選べます</p>
     </section>

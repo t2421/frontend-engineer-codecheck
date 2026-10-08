@@ -4,6 +4,7 @@ import {
   upstreamTimeoutMs,
   upstreamUserAgent,
 } from './config'
+import { jsonResponse } from './envelope'
 import { isSafeUpstreamResponse, validateRequest } from './validation'
 
 interface Env {
@@ -16,6 +17,7 @@ interface Env {
 type UpstreamFailureCode =
   'UPSTREAM_HTTP_ERROR' | 'UPSTREAM_TIMEOUT' | 'UNKNOWN'
 
+// ログに出す唯一の情報。例外・本文・ヘッダーは入れない。
 interface UpstreamDiagnostic {
   status: number
   code: UpstreamFailureCode
@@ -54,42 +56,68 @@ async function fetchUpstreamJson(
   return response.json()
 }
 
-async function proxyApiRequest(
-  upstreamPath: string,
-  apiKey: string,
-): Promise<Response> {
+function startUpstreamTimeout(onTimeout: () => void) {
   const controller = new AbortController()
-  const diagnostic: UpstreamDiagnostic = {
-    status: 0,
-    code: 'UNKNOWN',
-  }
   let timer: ReturnType<typeof setTimeout> | undefined
-  const timeoutPromise = new Promise<never>((_, reject) => {
+  const expired = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
-      diagnostic.code = 'UPSTREAM_TIMEOUT'
+      onTimeout()
       controller.abort()
       reject(new Error('Upstream timeout'))
     }, upstreamTimeoutMs)
   })
+  return {
+    signal: controller.signal,
+    expired,
+    cancel: () => clearTimeout(timer),
+  }
+}
 
+function upstreamFailureResponse(code: UpstreamFailureCode): Response {
+  return code === 'UPSTREAM_TIMEOUT'
+    ? errorResponse(504, 'UPSTREAM_TIMEOUT')
+    : errorResponse(502, 'UPSTREAM_ERROR')
+}
+
+async function proxyApiRequest(
+  upstreamPath: string,
+  apiKey: string,
+): Promise<Response> {
+  const diagnostic: UpstreamDiagnostic = { status: 0, code: 'UNKNOWN' }
+  const timeout = startUpstreamTimeout(() => {
+    diagnostic.code = 'UPSTREAM_TIMEOUT'
+  })
   try {
     const upstreamData = await Promise.race([
-      fetchUpstreamJson(upstreamPath, apiKey, controller.signal, diagnostic),
-      timeoutPromise,
+      fetchUpstreamJson(upstreamPath, apiKey, timeout.signal, diagnostic),
+      timeout.expired,
     ])
     if (!isSafeUpstreamResponse(upstreamData, apiKey))
       throw new Error('Unsafe upstream response')
-    return Response.json(upstreamData, {
-      headers: { 'Cache-Control': 'no-store' },
+    return jsonResponse(upstreamData)
+  } catch {
+    console.error(JSON.stringify(diagnostic))
+    return upstreamFailureResponse(diagnostic.code)
+  } finally {
+    timeout.cancel()
+  }
+}
+
+// 本番ではCloudflareが設定するIPだけを使い、両API共通のキーで制限する。
+async function rateLimitRejection(
+  request: Request,
+  env: Env,
+): Promise<Response | undefined> {
+  const ip = request.headers.get('CF-Connecting-IP')
+  if (!ip) return errorResponse(503, 'SERVICE_UNAVAILABLE')
+  try {
+    const { success } = await env.API_RATE_LIMITER.limit({ key: `ip:${ip}` })
+    if (success) return undefined
+    return errorResponse(429, 'RATE_LIMITED', {
+      'Retry-After': String(retryAfterSeconds),
     })
   } catch {
-    // 最後に受けたHTTP statusと固定コードだけを出し、例外・本文・ヘッダーは読まない。
-    console.error(JSON.stringify(diagnostic))
-    return diagnostic.code === 'UPSTREAM_TIMEOUT'
-      ? errorResponse(504, 'UPSTREAM_TIMEOUT')
-      : errorResponse(502, 'UPSTREAM_ERROR')
-  } finally {
-    clearTimeout(timer)
+    return errorResponse(503, 'SERVICE_UNAVAILABLE')
   }
 }
 
@@ -100,26 +128,14 @@ export default {
     if (!url.pathname.startsWith('/api/'))
       return new Response('Not Found', { status: 404 })
 
-    // 本番ではCloudflareが設定するIPだけを使い、両API共通のキーで制限する。
-    const ip = request.headers.get('CF-Connecting-IP')
-    if (!ip) return errorResponse(503, 'SERVICE_UNAVAILABLE')
-    try {
-      const { success } = await env.API_RATE_LIMITER.limit({ key: `ip:${ip}` })
-      if (!success)
-        return errorResponse(429, 'RATE_LIMITED', {
-          'Retry-After': String(retryAfterSeconds),
-        })
-    } catch {
-      return errorResponse(503, 'SERVICE_UNAVAILABLE')
-    }
+    const rejection = await rateLimitRejection(request, env)
+    if (rejection) return rejection
 
     const validation = validateRequest(request.method, url)
     if (!validation.ok) {
-      return errorResponse(
-        validation.status,
-        validation.code,
-        validation.status === 405 ? { Allow: 'GET' } : {},
-      )
+      const allowHeader: Record<string, string> =
+        validation.status === 405 ? { Allow: 'GET' } : {}
+      return errorResponse(validation.status, validation.code, allowHeader)
     }
 
     const apiKey = env.YUMEMI_API_KEY

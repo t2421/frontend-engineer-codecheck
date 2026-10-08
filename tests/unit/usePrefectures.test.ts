@@ -4,7 +4,7 @@ import { flushPromises } from '@vue/test-utils'
 import {
   usePrefectures,
   type PrefectureLoader,
-} from '../../src/components/prefectures/usePrefectures'
+} from '../../src/composables/usePrefectures'
 import { deferred } from '../fixtures/deferred'
 import type { Prefecture } from '../../src/components/prefectures/prefectureApi'
 import { hokkaido } from '../fixtures/prefectures'
