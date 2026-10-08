@@ -12,44 +12,66 @@ import { pathToFileURL, URL } from 'node:url'
 import process from 'node:process'
 
 export const marker = '<!-- pr-preview-performance -->'
+const previewMarker = '<!-- cloudflare-pr-preview -->'
 const profiles = ['desktop', 'mobile']
 const audits = {
   lcp: 'largest-contentful-paint',
   cls: 'cumulative-layout-shift',
   tbt: 'total-blocking-time',
 }
+const metricKeys = Object.keys(audits)
+const expectedRuns = 3
+const unknown = '不明'
+const undeterminable = '判定不可'
+
+const isHeadSha = (value) => /^[a-f0-9]{40}$/.test(value)
+const isPrNumber = (value) => /^\d+$/.test(value)
+const isValidMetric = (value) => Number.isFinite(value) && value >= 0
+
+// Lighthouse CIのデバイス条件。PCは有線相当、モバイルは4G相当の既定値に合わせる。
+const screenEmulations = {
+  desktop: {
+    mobile: false,
+    width: 1350,
+    height: 940,
+    deviceScaleFactor: 1,
+    disabled: false,
+  },
+  mobile: {
+    mobile: true,
+    width: 412,
+    height: 823,
+    deviceScaleFactor: 1.75,
+    disabled: false,
+  },
+}
+const throttlings = {
+  desktop: { rttMs: 40, throughputKbps: 10240, cpuSlowdownMultiplier: 1 },
+  mobile: { rttMs: 150, throughputKbps: 1638.4, cpuSlowdownMultiplier: 4 },
+}
+
+function isExplicitAppUrl(target) {
+  return (
+    ['https:', 'http:'].includes(target.protocol) && target.pathname !== '/'
+  )
+}
 
 export function collectionConfig(url, profile) {
   const target = new URL(url)
-  if (
-    !['https:', 'http:'].includes(target.protocol) ||
-    target.pathname === '/' ||
-    !profiles.includes(profile)
-  )
+  if (!isExplicitAppUrl(target) || !profiles.includes(profile))
     throw new Error('Explicit app URL and profile required')
-  const desktop = profile === 'desktop'
   return {
     ci: {
       collect: {
         url: [url],
-        numberOfRuns: 3,
+        numberOfRuns: expectedRuns,
         settings: {
           onlyCategories: ['performance'],
           formFactor: profile,
           emulatedUserAgent: true,
-          screenEmulation: {
-            mobile: !desktop,
-            width: desktop ? 1350 : 412,
-            height: desktop ? 940 : 823,
-            deviceScaleFactor: desktop ? 1 : 1.75,
-            disabled: false,
-          },
+          screenEmulation: screenEmulations[profile],
           throttlingMethod: 'simulate',
-          throttling: {
-            rttMs: desktop ? 40 : 150,
-            throughputKbps: desktop ? 10240 : 1638.4,
-            cpuSlowdownMultiplier: desktop ? 1 : 4,
-          },
+          throttling: throttlings[profile],
           disableStorageReset: false,
           chromeFlags: '--headless --no-sandbox',
         },
@@ -58,34 +80,38 @@ export function collectionConfig(url, profile) {
   }
 }
 
-export function summarize(reports, url) {
-  if (reports.length !== 3) throw new Error('Expected exactly three reports')
-  for (const report of reports) {
-    const final = report.finalDisplayedUrl ?? report.finalUrl
-    if (report.runtimeError || report.requestedUrl !== url || final !== url)
-      throw new Error('Runtime error or target URL mismatch')
-    for (const audit of Object.values(audits)) {
-      const value = report.audits?.[audit]?.numericValue
-      if (!Number.isFinite(value) || value < 0)
-        throw new Error('Missing or invalid metric')
-    }
+function assertReportMatches(report, url) {
+  const finalUrl = report.finalDisplayedUrl ?? report.finalUrl
+  if (report.runtimeError || report.requestedUrl !== url || finalUrl !== url)
+    throw new Error('Runtime error or target URL mismatch')
+  for (const audit of Object.values(audits)) {
+    if (!isValidMetric(report.audits?.[audit]?.numericValue))
+      throw new Error('Missing or invalid metric')
   }
+}
+
+function median(values) {
+  return [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
+}
+
+export function summarize(reports, url) {
+  if (reports.length !== expectedRuns)
+    throw new Error('Expected exactly three reports')
+  for (const report of reports) assertReportMatches(report, url)
   return {
     status: 'measured',
     runs: reports.length,
     metrics: Object.fromEntries(
       Object.entries(audits).map(([key, audit]) => [
         key,
-        reports
-          .map((r) => r.audits[audit].numericValue)
-          .sort((a, b) => a - b)[1],
+        median(reports.map((report) => report.audits[audit].numericValue)),
       ]),
     ),
-    conditions: reports.map((r) => ({
-      measuredAt: r.fetchTime,
-      lighthouse: r.lighthouseVersion,
-      browser: r.environment?.hostUserAgent,
-      settings: r.configSettings,
+    conditions: reports.map((report) => ({
+      measuredAt: report.fetchTime,
+      lighthouse: report.lighthouseVersion,
+      browser: report.environment?.hostUserAgent,
+      settings: report.configSettings,
     })),
   }
 }
@@ -106,62 +132,71 @@ const nextChecks = {
   tbt: 'DevToolsの長時間タスク・JS実行',
 }
 
-// Reference labels for lab medians, never CI assertions or field CWV pass/fail.
-export function rateMetric(metric, value, profile) {
-  if (!profiles.includes(profile) || !Number.isFinite(value) || value < 0)
-    return '判定不可'
+function ratingLimits(metric, profile) {
   const limits = {
     lcp: [2500, 4000],
     cls: [0.1, 0.25],
     tbt: profile === 'desktop' ? [150, 350] : [200, 600],
-  }[metric]
-  if (!limits) return '判定不可'
-  return value <= limits[0]
-    ? '良好'
-    : value <= limits[1]
-      ? '改善が必要'
-      : '不良'
+  }
+  return limits[metric]
+}
+
+// Reference labels for lab medians, never CI assertions or field CWV pass/fail.
+export function rateMetric(metric, value, profile) {
+  if (!profiles.includes(profile) || !isValidMetric(value))
+    return undeterminable
+  const limits = ratingLimits(metric, profile)
+  if (!limits) return undeterminable
+  const [goodLimit, needsWorkLimit] = limits
+  if (value <= goodLimit) return '良好'
+  if (value <= needsWorkLimit) return '改善が必要'
+  return '不良'
+}
+
+function isMeasuredSummary(data, profile) {
+  return (
+    profiles.includes(profile) &&
+    data?.status === 'measured' &&
+    data.runs === expectedRuns &&
+    metricKeys.every((key) => isValidMetric(data.metrics?.[key]))
+  )
+}
+
+function worstRating(ratings) {
+  const worstIndex = Math.max(
+    ...Object.values(ratings).map((label) => ratingLabels.indexOf(label)),
+  )
+  return ratingLabels[worstIndex]
+}
+
+function unmeasuredAssessment(data) {
+  const evidence =
+    data?.reason === 'collection-failed'
+      ? '未計測（計測エラー・不完全レポート）'
+      : '未計測（公開失敗・job未完了・指標欠損・レポートなし）'
+  return {
+    valid: false,
+    rating: undeterminable,
+    evidence,
+    next: 'Preview公開・Actionsログ・対象URL・レポート完了を確認して再計測',
+  }
 }
 
 export function evaluateProfile(data, profile) {
-  const valid =
-    profiles.includes(profile) &&
-    data?.status === 'measured' &&
-    data.runs === 3 &&
-    Object.keys(audits).every(
-      (key) => Number.isFinite(data.metrics?.[key]) && data.metrics[key] >= 0,
-    )
-  if (!valid)
-    return {
-      valid: false,
-      rating: '判定不可',
-      evidence:
-        data?.reason === 'collection-failed'
-          ? '未計測（計測エラー・不完全レポート）'
-          : '未計測（公開失敗・job未完了・指標欠損・レポートなし）',
-      next: 'Preview公開・Actionsログ・対象URL・レポート完了を確認して再計測',
-    }
+  if (!isMeasuredSummary(data, profile)) return unmeasuredAssessment(data)
   const ratings = Object.fromEntries(
-    Object.keys(audits).map((key) => [
-      key,
-      rateMetric(key, data.metrics[key], profile),
-    ]),
+    metricKeys.map((key) => [key, rateMetric(key, data.metrics[key], profile)]),
   )
-  const rating =
-    ratingLabels[
-      Math.max(
-        ...Object.values(ratings).map((label) => ratingLabels.indexOf(label)),
-      )
-    ]
-  const affected = Object.keys(audits).filter((key) => ratings[key] !== '良好')
+  const affected = metricKeys.filter((key) => ratings[key] !== '良好')
+  const hasAffected = affected.length > 0
   return {
     valid: true,
-    rating,
+    rating: worstRating(ratings),
     ratings,
-    evidence: affected.length
+    evidence: hasAffected
       ? `${affected.map((key) => metricLabels[key]).join('・')}が良好範囲を超過`
       : '3指標とも良好範囲',
-    next: affected.length
+    next: hasAffected
       ? affected.map((key) => nextChecks[key]).join('、')
       : '#36で操作時INP・本番API待ちを確認',
   }
@@ -169,30 +204,51 @@ export function evaluateProfile(data, profile) {
 
 // Only a small allowlisted JSON value crosses the read-only measurement / write boundary.
 const maxSummaryBytes = 16 * 1024
+const unmeasuredReasons = new Set(['collection-failed', 'preview-unavailable'])
+
 function safeTime(value) {
   return typeof value === 'string' && Number.isFinite(Date.parse(value))
     ? new Date(value).toISOString()
-    : '不明'
+    : unknown
+}
+function safeLighthouseVersion(value) {
+  const isSemver =
+    typeof value === 'string' &&
+    /^\d{1,3}\.\d{1,3}\.\d{1,3}(?:[-+][A-Za-z0-9.-]{1,24})?$/.test(value)
+  return isSemver ? value : unknown
+}
+function safeBrowser(value) {
+  if (typeof value !== 'string') return unknown
+  const chromeVersion = value.match(
+    /\b(?:HeadlessChrome|Chrome|Chromium)\/[0-9.]{1,40}/,
+  )
+  return chromeVersion?.[0] ?? unknown
 }
 function compactConditions(conditions) {
-  return (Array.isArray(conditions) ? conditions.slice(0, 3) : []).map(
-    (condition) => ({
-      measuredAt: safeTime(condition?.measuredAt),
-      lighthouse:
-        typeof condition?.lighthouse === 'string' &&
-        /^\d{1,3}\.\d{1,3}\.\d{1,3}(?:[-+][A-Za-z0-9.-]{1,24})?$/.test(
-          condition.lighthouse,
-        )
-          ? condition.lighthouse
-          : '不明',
-      browser:
-        typeof condition?.browser === 'string'
-          ? (condition.browser.match(
-              /\b(?:HeadlessChrome|Chrome|Chromium)\/[0-9.]{1,40}/,
-            )?.[0] ?? '不明')
-          : '不明',
-    }),
-  )
+  const first = Array.isArray(conditions)
+    ? conditions.slice(0, expectedRuns)
+    : []
+  return first.map((condition) => ({
+    measuredAt: safeTime(condition?.measuredAt),
+    lighthouse: safeLighthouseVersion(condition?.lighthouse),
+    browser: safeBrowser(condition?.browser),
+  }))
+}
+function compactProfile(data, profile) {
+  if (!evaluateProfile(data, profile).valid) {
+    const reason = unmeasuredReasons.has(data?.reason)
+      ? data.reason
+      : 'invalid-summary'
+    return { status: 'unmeasured', reason }
+  }
+  return {
+    status: 'measured',
+    runs: expectedRuns,
+    metrics: Object.fromEntries(
+      metricKeys.map((key) => [key, data.metrics[key]]),
+    ),
+    conditions: compactConditions(data.conditions),
+  }
 }
 function compactSummary(result) {
   return {
@@ -200,29 +256,10 @@ function compactSummary(result) {
     url: result.url,
     measuredAt: safeTime(result.measuredAt),
     profiles: Object.fromEntries(
-      profiles.map((profile) => {
-        const data = result.profiles?.[profile]
-        return [
-          profile,
-          evaluateProfile(data, profile).valid
-            ? {
-                status: 'measured',
-                runs: 3,
-                metrics: Object.fromEntries(
-                  Object.keys(audits).map((key) => [key, data.metrics[key]]),
-                ),
-                conditions: compactConditions(data.conditions),
-              }
-            : {
-                status: 'unmeasured',
-                reason: ['collection-failed', 'preview-unavailable'].includes(
-                  data?.reason,
-                )
-                  ? data.reason
-                  : 'invalid-summary',
-              },
-        ]
-      }),
+      profiles.map((profile) => [
+        profile,
+        compactProfile(result.profiles?.[profile], profile),
+      ]),
     ),
   }
 }
@@ -233,12 +270,11 @@ export function serializeSummary(result) {
   return summary
 }
 export function parseSummary(value, sha, url) {
-  if (
-    typeof value !== 'string' ||
-    !value ||
-    Buffer.byteLength(value, 'utf8') > maxSummaryBytes
-  )
-    return null
+  const isSmallString =
+    typeof value === 'string' &&
+    value !== '' &&
+    Buffer.byteLength(value, 'utf8') <= maxSummaryBytes
+  if (!isSmallString) return null
   try {
     const result = JSON.parse(value)
     if (result?.sha !== sha || result?.url !== url) return null
@@ -248,27 +284,35 @@ export function parseSummary(value, sha, url) {
   }
 }
 
+const ratingIcons = { 良好: '🟢', 改善が必要: '🟡', 不良: '🔴' }
 function ratingBadge(rating) {
-  const icon = { 良好: '🟢', 改善が必要: '🟡', 不良: '🔴' }[rating] ?? '⚪'
-  return `${icon} ${rating}`
+  return `${ratingIcons[rating] ?? '⚪'} ${rating}`
+}
+
+const profileLabels = { desktop: 'PC', mobile: 'モバイル' }
+const unmeasuredReasonLabels = {
+  'collection-failed': '収集失敗',
+  'preview-unavailable': 'Preview未公開',
+}
+function unmeasuredRow(label, data) {
+  const reason = unmeasuredReasonLabels[data?.reason] ?? 'サマリー欠損・不正'
+  return `| ${label} | ⚪ ${undeterminable} | — | — | — | 未計測（${reason}） |`
+}
+function measuredRow(label, metrics, assessment) {
+  const lcp = `${(metrics.lcp / 1000).toFixed(2)} s（${ratingBadge(assessment.ratings.lcp)}）`
+  const cls = `${metrics.cls.toFixed(3)}（${ratingBadge(assessment.ratings.cls)}）`
+  const tbt = `${Math.round(metrics.tbt)} ms（${ratingBadge(assessment.ratings.tbt)}）`
+  return `| ${label} | ${ratingBadge(assessment.rating)} | ${lcp} | ${cls} | ${tbt} | ${expectedRuns}/${expectedRuns} |`
 }
 
 export function renderComment(result, runUrl) {
   const rows = profiles.map((profile) => {
-    const label = profile === 'desktop' ? 'PC' : 'モバイル'
+    const label = profileLabels[profile]
     const data = result.profiles?.[profile]
     const assessment = evaluateProfile(data, profile)
-    if (!assessment.valid) {
-      const reason =
-        data?.reason === 'collection-failed'
-          ? '収集失敗'
-          : data?.reason === 'preview-unavailable'
-            ? 'Preview未公開'
-            : 'サマリー欠損・不正'
-      return `| ${label} | ⚪ 判定不可 | — | — | — | 未計測（${reason}） |`
-    }
-    const m = data.metrics
-    return `| ${label} | ${ratingBadge(assessment.rating)} | ${(m.lcp / 1000).toFixed(2)} s（${ratingBadge(assessment.ratings.lcp)}） | ${m.cls.toFixed(3)}（${ratingBadge(assessment.ratings.cls)}） | ${Math.round(m.tbt)} ms（${ratingBadge(assessment.ratings.tbt)}） | 3/3 |`
+    return assessment.valid
+      ? measuredRow(label, data.metrics, assessment)
+      : unmeasuredRow(label, data)
   })
   const documentationUrl = runUrl.replace(
     /\/actions\/runs\/[^/]+$/,
@@ -285,6 +329,34 @@ ${rows.join('\n')}
 `
 }
 
+async function readLighthouseReports() {
+  const files = (await readdir('.lighthouseci')).filter((file) =>
+    /^lhr-.*\.json$/.test(file),
+  )
+  return Promise.all(
+    files.map(async (file) =>
+      JSON.parse(await readFile(`.lighthouseci/${file}`, 'utf8')),
+    ),
+  )
+}
+
+async function collectProfile(url, profile, output) {
+  const config = collectionConfig(url, profile)
+  const configPath = `${output}/${profile}-config.json`
+  await writeFile(configPath, JSON.stringify(config, null, 2))
+  const run = spawnSync(
+    'pnpm',
+    ['exec', 'lhci', 'collect', `--config=${configPath}`],
+    { encoding: 'utf8', timeout: 240_000 },
+  )
+  await writeFile(
+    `${output}/${profile}-collect.log`,
+    `${run.stdout ?? ''}\n${run.stderr ?? ''}\n${run.error?.message ?? ''}`,
+  )
+  if (run.status !== 0) throw new Error('LHCI collect failed')
+  return summarize(await readLighthouseReports(), url)
+}
+
 async function collect() {
   const {
     PREVIEW_URL: url,
@@ -295,6 +367,7 @@ async function collect() {
   // A rerun must never aggregate reports left by an earlier collection.
   await rm(output, { recursive: true, force: true })
   await mkdir(output, { recursive: true })
+  const isPreviewPublished = publish === 'success' && Boolean(url)
   const result = {
     sha,
     url: url || '',
@@ -306,30 +379,9 @@ async function collect() {
       status: 'unmeasured',
       reason: 'preview-unavailable',
     }
-    if (publish !== 'success' || !url) continue
+    if (!isPreviewPublished) continue
     try {
-      const config = collectionConfig(url, profile)
-      const configPath = `${output}/${profile}-config.json`
-      await writeFile(configPath, JSON.stringify(config, null, 2))
-      const run = spawnSync(
-        'pnpm',
-        ['exec', 'lhci', 'collect', `--config=${configPath}`],
-        { encoding: 'utf8', timeout: 240_000 },
-      )
-      await writeFile(
-        `${output}/${profile}-collect.log`,
-        `${run.stdout ?? ''}\n${run.stderr ?? ''}\n${run.error?.message ?? ''}`,
-      )
-      if (run.status !== 0) throw new Error('LHCI collect failed')
-      const files = (await readdir('.lighthouseci')).filter((file) =>
-        /^lhr-.*\.json$/.test(file),
-      )
-      const reports = await Promise.all(
-        files.map(async (file) =>
-          JSON.parse(await readFile(`.lighthouseci/${file}`, 'utf8')),
-        ),
-      )
-      result.profiles[profile] = summarize(reports, url)
+      result.profiles[profile] = await collectProfile(url, profile, output)
     } catch (error) {
       result.profiles[profile] = {
         status: 'unmeasured',
@@ -345,6 +397,22 @@ async function collect() {
     await appendFile(process.env.GITHUB_OUTPUT, `summary=${summary}\n`)
 }
 
+function gh(args, input) {
+  const response = spawnSync('gh', args, { encoding: 'utf8', input })
+  if (response.status !== 0) throw new Error(response.stderr)
+  return response.stdout
+}
+
+function previewComment(baseUrl, sha) {
+  return `${previewMarker}
+Cloudflare UI Preview: ${baseUrl}
+
+対象commit: \`${sha}\`
+
+URLを知っている方が閲覧できます。公開済み本番APIを使用し、利用枠を消費します。PreviewにSecretは渡しません。PR内のバックエンド変更は検証対象外です。
+`
+}
+
 // Trusted default-branch script only. Job output JSON is data, never commands/Markdown.
 async function comment() {
   const {
@@ -355,20 +423,15 @@ async function comment() {
     GITHUB_RUN_ID: run,
     GITHUB_SERVER_URL: server,
   } = process.env
-  if (!/^[a-f0-9]{40}$/.test(sha) || !/^\d+$/.test(number))
+  if (!isHeadSha(sha) || !isPrNumber(number))
     throw new Error('Invalid PR identity')
-  const gh = (args, input) => {
-    const response = spawnSync('gh', args, { encoding: 'utf8', input })
-    if (response.status !== 0) throw new Error(response.stderr)
-    return response.stdout
-  }
-  const current = () =>
+  const isStillCurrent = () =>
     canUpdate(
       JSON.parse(gh(['api', `repos/${repo}/pulls/${number}`])),
       sha,
       repo,
     )
-  if (!current()) return
+  if (!isStillCurrent()) return
   const result = parseSummary(
     process.env.PERFORMANCE_SUMMARY,
     sha,
@@ -388,46 +451,31 @@ async function comment() {
       `repos/${repo}/issues/${number}/comments`,
     ]),
   )
-  const upsert = (commentMarker, commentBody) => {
-    const existing = pages
+  const findBotComment = (commentMarker) =>
+    pages
       .flat()
       .find(
-        (c) =>
-          c.user?.login === 'github-actions[bot]' &&
-          c.body?.startsWith(commentMarker),
+        (existing) =>
+          existing.user?.login === 'github-actions[bot]' &&
+          existing.body?.startsWith(commentMarker),
       )
+  const upsert = (commentMarker, commentBody) => {
+    const existing = findBotComment(commentMarker)
     // Recheck immediately before each mutation, including the existing Preview comment.
-    if (!current()) return
+    if (!isStillCurrent()) return
+    const [method, endpoint] = existing
+      ? ['PATCH', `repos/${repo}/issues/comments/${existing.id}`]
+      : ['POST', `repos/${repo}/issues/${number}/comments`]
     gh(
-      [
-        'api',
-        '--method',
-        existing ? 'PATCH' : 'POST',
-        existing
-          ? `repos/${repo}/issues/comments/${existing.id}`
-          : `repos/${repo}/issues/${number}/comments`,
-        '--input',
-        '-',
-      ],
+      ['api', '--method', method, endpoint, '--input', '-'],
       JSON.stringify({ body: commentBody }),
     )
   }
   upsert(marker, body)
-  if (
-    process.env.PUBLISH_RESULT === 'success' &&
-    process.env.PREVIEW_BASE_URL
-  ) {
-    upsert(
-      '<!-- cloudflare-pr-preview -->',
-      `<!-- cloudflare-pr-preview -->
-Cloudflare UI Preview: ${process.env.PREVIEW_BASE_URL}
-
-対象commit: \`${sha}\`
-
-URLを知っている方が閲覧できます。公開済み本番APIを使用し、利用枠を消費します。PreviewにSecretは渡しません。PR内のバックエンド変更は検証対象外です。
-`,
-    )
-  }
+  const isPreviewPublished =
+    process.env.PUBLISH_RESULT === 'success' && process.env.PREVIEW_BASE_URL
+  if (isPreviewPublished)
+    upsert(previewMarker, previewComment(process.env.PREVIEW_BASE_URL, sha))
 }
 
 if (

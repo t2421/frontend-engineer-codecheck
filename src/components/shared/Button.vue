@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import '../../styles/control-label.css'
-import { isRepeatedClick } from './repeatedClick'
+import { isRepeatedClick } from '../../utils/repeatedClick'
 defineOptions({ name: 'SharedButton' })
 
 const props = withDefaults(

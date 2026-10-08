@@ -11,9 +11,10 @@ await build({
 // Preserve the application URL used by Preview links.
 await mkdir('dist-review/app', { recursive: true })
 await copyFile('dist-review/index.html', 'dist-review/app/index.html')
+const isHeadSha = (value) => /^[a-f0-9]{40}$/.test(value)
 const sha = process.env.REVIEW_SHA
 if (sha) {
-  if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid review SHA')
+  if (!isHeadSha(sha)) throw new Error('Invalid review SHA')
   await mkdir(`dist-review/performance/${sha}`, { recursive: true })
   await copyFile(
     'dist-review/index.html',
