@@ -12,8 +12,8 @@ import {
   type PopulationComposition,
   type PopulationSeries,
   type SelectedPrefecture,
-} from './populationApi'
-import type { StatusMessageState } from '../shared/StatusMessage.vue'
+} from '../components/population/populationApi'
+import type { StatusMessageState } from '../components/shared/StatusMessage.vue'
 export type PopulationStatus = StatusMessageState | 'ready'
 export type PopulationLoader = (
   prefCode: number,

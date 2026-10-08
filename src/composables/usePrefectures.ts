@@ -1,5 +1,8 @@
 import { onScopeDispose, readonly, ref } from 'vue'
-import { fetchPrefectures, type Prefecture } from './prefectureApi'
+import {
+  fetchPrefectures,
+  type Prefecture,
+} from '../components/prefectures/prefectureApi'
 export type PrefectureLoader = (
   signal?: AbortSignal,
 ) => Promise<readonly Prefecture[]>

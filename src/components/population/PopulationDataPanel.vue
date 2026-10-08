@@ -16,7 +16,7 @@ import {
   usePopulationData,
   type PopulationLoader,
   type PopulationStatus,
-} from './usePopulationData'
+} from '../../composables/usePopulationData'
 const props = defineProps<{
   selectedPrefectures: readonly SelectedPrefecture[]
   loader?: PopulationLoader

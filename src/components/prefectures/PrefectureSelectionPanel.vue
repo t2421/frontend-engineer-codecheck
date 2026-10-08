@@ -10,11 +10,14 @@ import {
 } from 'vue'
 import Button from '../shared/Button.vue'
 import { isRendered } from '../../utils/dom'
-import { useMobileViewport } from '../shared/useMobileViewport'
+import { useMobileViewport } from '../../composables/useMobileViewport'
 import PrefectureSelector from './PrefectureSelector.vue'
 import PrefectureSelectionSheet from './PrefectureSelectionSheet.vue'
 import type { Prefecture } from './prefectureApi'
-import { usePrefectures, type PrefectureLoader } from './usePrefectures'
+import {
+  usePrefectures,
+  type PrefectureLoader,
+} from '../../composables/usePrefectures'
 const props = defineProps<{
   headingId?: string
   modelValue: readonly Prefecture[]

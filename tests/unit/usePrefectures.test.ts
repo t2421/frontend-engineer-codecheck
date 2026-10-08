@@ -1,6 +1,6 @@
 import { effectScope } from 'vue'
 import { expect, test, vi } from 'vitest'
-import { usePrefectures } from '../../src/components/prefectures/usePrefectures'
+import { usePrefectures } from '../../src/composables/usePrefectures'
 const data = [{ prefCode: 1, prefName: '北海道' }]
 test('scope終了で中断し遅延成功を反映しない', async () => {
   let resolve!: (value: typeof data) => void
