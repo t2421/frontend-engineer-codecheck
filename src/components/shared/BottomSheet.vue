@@ -8,7 +8,11 @@ import {
   watch,
 } from 'vue'
 import Button from './Button.vue'
+import { isRendered } from './dom'
 import { isRepeatedClick } from './repeatedClick'
+
+const FOCUSABLE_SELECTOR =
+  'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]'
 
 defineProps<{ title: string }>()
 const emit = defineEmits<{ closed: [] }>()
@@ -82,20 +86,21 @@ function closeOnBackdropClick(event: MouseEvent) {
   if (!isRepeatedClick(event)) open.value = false
 }
 
+function visibleControls(): HTMLElement[] {
+  const controls =
+    dialog.value?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+  return Array.from(controls ?? []).filter(isRendered)
+}
+
 function keepTabInsideSheet(event: KeyboardEvent) {
-  const controls = Array.from(
-    dialog.value?.querySelectorAll<HTMLElement>(
-      'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
-    ) ?? [],
-  ).filter((element) => element.getClientRects().length)
+  const controls = visibleControls()
   const first = controls[0]
   const last = controls.at(-1)
-  const leaving = event.shiftKey ? first : last
+  const edgeControl = event.shiftKey ? first : last
   const wrapTo = event.shiftKey ? last : first
-  if (document.activeElement === leaving && wrapTo) {
-    event.preventDefault()
-    wrapTo.focus()
-  }
+  if (document.activeElement !== edgeControl || !wrapTo) return
+  event.preventDefault()
+  wrapTo.focus()
 }
 </script>
 

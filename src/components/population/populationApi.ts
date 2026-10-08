@@ -1,3 +1,7 @@
+import { withRequestTimeout } from '../shared/apiRequest'
+import { isRecord } from '../shared/jsonRecord'
+import { isPrefectureCode } from '../prefectures/prefectureCode'
+
 export const populationCategories = [
   { value: 'total', label: '総人口', apiLabel: '総人口' },
   { value: 'young', label: '年少人口', apiLabel: '年少人口' },
@@ -33,35 +37,44 @@ export class PopulationDataError extends Error {
   readonly reason: string
 }
 
-function record(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+interface SuccessEnvelope {
+  message: null
+  result: Record<string, unknown>
 }
-function nonnegativeInteger(value: unknown): value is number {
+
+function isNonnegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+function isPercentage(value: number): boolean {
+  return Number.isFinite(value) && value >= 0 && value <= 100
+}
+function isSuccessEnvelope(body: unknown): body is SuccessEnvelope {
+  return isRecord(body) && body.message === null && isRecord(body.result)
 }
 function assert(condition: unknown, reason: string): asserts condition {
   if (!condition) throw new PopulationDataError(reason)
 }
 
+function parseRate(raw: unknown): number | undefined {
+  if (raw === undefined) return undefined
+  assert(typeof raw === 'number', 'rate is not a number')
+  assert(isPercentage(raw), 'rate is out of range')
+  return raw
+}
+
 function parsePoint(raw: unknown, seenYears: Set<number>): PopulationPoint {
-  assert(record(raw), 'point is not an object')
-  const { year, value, rate } = raw
-  assert(nonnegativeInteger(year), 'year is not a nonnegative integer')
-  assert(nonnegativeInteger(value), 'value is not a nonnegative integer')
+  assert(isRecord(raw), 'point is not an object')
+  const { year, value } = raw
+  assert(isNonnegativeInteger(year), 'year is not a nonnegative integer')
+  assert(isNonnegativeInteger(value), 'value is not a nonnegative integer')
   assert(!seenYears.has(year), 'year is duplicated')
-  if (rate !== undefined) {
-    assert(typeof rate === 'number', 'rate is not a number')
-    assert(
-      Number.isFinite(rate) && rate >= 0 && rate <= 100,
-      'rate is out of range',
-    )
-  }
+  const rate = parseRate(raw.rate)
   seenYears.add(year)
-  return { year, value, ...(rate === undefined ? {} : { rate }) }
+  return rate === undefined ? { year, value } : { year, value, rate }
 }
 
 function parseSeries(raw: unknown): readonly PopulationPoint[] {
-  assert(record(raw), 'series is not an object')
+  assert(isRecord(raw), 'series is not an object')
   assert(
     Array.isArray(raw.data) && raw.data.length,
     'series data is empty or invalid',
@@ -72,42 +85,43 @@ function parseSeries(raw: unknown): readonly PopulationPoint[] {
     .sort((a, b) => a.year - b.year)
 }
 
-function findSeries(data: readonly unknown[], label: string): unknown {
+function findSeriesByLabel(data: readonly unknown[], label: string): unknown {
   const matches = data.filter(
-    (series) => record(series) && series.label === label,
+    (series) => isRecord(series) && series.label === label,
   )
   assert(matches.length === 1, 'required label is missing or duplicated')
   return matches[0]
 }
 
+function parseCategories(
+  data: readonly unknown[],
+): PopulationComposition['categories'] {
+  const entries = populationCategories.map(({ value, apiLabel }) => [
+    value,
+    parseSeries(findSeriesByLabel(data, apiLabel)),
+  ])
+  return Object.fromEntries(entries) as PopulationComposition['categories']
+}
+
 export function parsePopulation(body: unknown): PopulationComposition {
-  assert(
-    record(body) && body.message === null && record(body.result),
-    'response envelope is invalid',
-  )
+  assert(isSuccessEnvelope(body), 'response envelope is invalid')
   const { boundaryYear, data } = body.result
   assert(
-    nonnegativeInteger(boundaryYear),
+    isNonnegativeInteger(boundaryYear),
     'boundaryYear is not a nonnegative integer',
   )
   assert(Array.isArray(data), 'data is not an array')
-  const categories = {} as PopulationComposition['categories']
-  for (const { value, apiLabel } of populationCategories)
-    categories[value] = parseSeries(findSeries(data, apiLabel))
-  return { boundaryYear, categories }
+  return { boundaryYear, categories: parseCategories(data) }
 }
 export async function fetchPopulation(
   prefCode: number,
   fetcher: typeof fetch = fetch,
 ): Promise<PopulationComposition> {
-  assert(
-    Number.isInteger(prefCode) && prefCode >= 1 && prefCode <= 47,
-    'prefecture code is invalid',
-  )
+  assert(isPrefectureCode(prefCode), 'prefecture code is invalid')
   try {
     const response = await fetcher(
       `/api/v1/population/composition/perYear?prefCode=${prefCode}`,
-      { method: 'GET', signal: AbortSignal.timeout(15000) },
+      { method: 'GET', signal: withRequestTimeout() },
     )
     assert(response.ok, 'HTTP request failed')
     return parsePopulation(await response.json())

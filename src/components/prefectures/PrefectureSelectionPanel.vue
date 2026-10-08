@@ -9,6 +9,7 @@ import {
   watch,
 } from 'vue'
 import Button from '../shared/Button.vue'
+import { isRendered } from '../shared/dom'
 import { useMobileViewport } from '../shared/useMobileViewport'
 import PrefectureSelector from './PrefectureSelector.vue'
 import PrefectureSelectionSheet from './PrefectureSelectionSheet.vue'
@@ -27,7 +28,9 @@ const emit = defineEmits<{
 const { prefectures, status, retry } = usePrefectures(props.loader)
 const { isMobile } = useMobileViewport()
 const sheetMode = computed(() => Boolean(props.sheetOnMobile) && isMobile.value)
-const codes = computed(() => props.modelValue.map((p) => p.prefCode))
+const selectedCodes = computed(() =>
+  props.modelValue.map((prefecture) => prefecture.prefCode),
+)
 const sheetOpen = ref(false)
 const inlineList = useTemplateRef<HTMLElement>('inlineList')
 const floatingControl = useTemplateRef<HTMLElement>('floatingControl')
@@ -43,13 +46,14 @@ function focusedBeforeLayoutChange(): Node | null {
 }
 
 let heightObserver: ResizeObserver | undefined
+function reportFloatingControlHeight() {
+  const height = floatingControl.value?.getBoundingClientRect().height
+  if (height) emit('floating-control-height', height)
+}
 onMounted(() => {
   document.addEventListener('focusin', trackLastFocused)
   if (typeof ResizeObserver === 'undefined' || !floatingControl.value) return
-  heightObserver = new ResizeObserver(() => {
-    const height = floatingControl.value?.getBoundingClientRect().height
-    if (height) emit('floating-control-height', height)
-  })
+  heightObserver = new ResizeObserver(reportFloatingControlHeight)
   heightObserver.observe(floatingControl.value)
 })
 onScopeDispose(() => {
@@ -75,22 +79,23 @@ watch(sheetMode, async (entersSheetMode) => {
 function focusFloatingControl() {
   floatingControl.value?.querySelector('button')?.focus({ preventScroll: true })
 }
-function focusInlineList() {
-  if (sheetMode.value) return
-  const list = inlineList.value
-  const firstControl =
-    list?.querySelector<HTMLElement>('input[type="checkbox"]') ??
-    Array.from(
-      list?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [],
-    ).find((button) => button.getClientRects().length) ??
-    list
-  firstControl?.focus()
+function firstVisibleControl(list: HTMLElement): HTMLElement | undefined {
+  const checkbox = list.querySelector<HTMLElement>('input[type="checkbox"]')
+  if (checkbox) return checkbox
+  const buttons = list.querySelectorAll<HTMLElement>('button:not(:disabled)')
+  return Array.from(buttons).find(isRendered)
 }
-function update(codes: number[]) {
+function focusInlineList() {
+  const list = inlineList.value
+  if (sheetMode.value || !list) return
+  const target = firstVisibleControl(list) ?? list
+  target.focus()
+}
+function applySelection(codes: number[]) {
   const selected = new Set(codes)
   emit(
     'update:modelValue',
-    prefectures.value.filter((p) => selected.has(p.prefCode)),
+    prefectures.value.filter((prefecture) => selected.has(prefecture.prefCode)),
   )
 }
 </script>
@@ -104,10 +109,10 @@ function update(codes: number[]) {
     <PrefectureSelector
       :heading-id="headingId"
       :prefectures="prefectures"
-      :model-value="codes"
+      :model-value="selectedCodes"
       :status="status"
       :mobile="isMobile"
-      @update:model-value="update"
+      @update:model-value="applySelection"
       @retry="retry"
     />
   </div>
@@ -118,7 +123,7 @@ function update(codes: number[]) {
       :class="{ 'is-hidden': !sheetMode }"
     >
       <Button
-        :label="`都道府県を選択 · ${codes.length} 選択中`"
+        :label="`都道府県を選択 · ${selectedCodes.length} 選択中`"
         aria-haspopup="dialog"
         :aria-expanded="sheetOpen"
         @click="sheetOpen = true"
@@ -128,9 +133,9 @@ function update(codes: number[]) {
   <PrefectureSelectionSheet
     v-model="sheetOpen"
     :prefectures="prefectures"
-    :selected-codes="codes"
+    :selected-codes="selectedCodes"
     :status="status"
-    @apply="update"
+    @apply="applySelection"
     @retry="retry"
     @closed="focusInlineList"
   />

@@ -25,6 +25,7 @@ import {
 import StatusMessage from '../shared/StatusMessage.vue'
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, Tooltip)
+const COMPACT_PLOT_WIDTH = 480
 const props = defineProps<{
   series: readonly PopulationSeries[]
   category: PopulationCategory
@@ -32,28 +33,39 @@ const props = defineProps<{
 const canvas = ref<HTMLCanvasElement>()
 const descriptionId = useId()
 const categoryLabel = computed(
-  () => populationCategories.find((c) => c.value === props.category)!.label,
+  () =>
+    populationCategories.find((option) => option.value === props.category)
+      ?.label ?? '',
 )
 const legends = computed(() =>
-  props.series.map((s) => ({ ...s, style: seriesStyle(s.prefCode) })),
+  props.series.map((entry) => ({
+    ...entry,
+    colorToken: seriesColorTokens[seriesStyle(entry.prefCode).colorIndex],
+  })),
+)
+const prefectureNames = computed(() =>
+  props.series.map((entry) => entry.prefName).join('、'),
+)
+const chartLabel = computed(
+  () => `${categoryLabel.value}の人口推移（${prefectureNames.value}）`,
 )
 const formatPeople = (value: number) => `${value.toLocaleString('ja-JP')}人`
 let chart: Chart<'line', Point[]> | undefined
-let mounted = false
-function destroy() {
+let isMounted = false
+function destroyChart() {
   chart?.destroy()
   chart = undefined
 }
+function readSeriesColors(css: CSSStyleDeclaration): string[] {
+  return seriesColorTokens.map((token) => css.getPropertyValue(token).trim())
+}
 function syncChart() {
   if (!props.series.length || !canvas.value) {
-    destroy()
+    destroyChart()
     return
   }
   const css = getComputedStyle(canvas.value)
-  const colors = seriesColorTokens.map((token) =>
-    css.getPropertyValue(token).trim(),
-  )
-  const data = createPopulationChartData(props.series, colors)
+  const data = createPopulationChartData(props.series, readSeriesColors(css))
   if (chart) {
     chart.data = data
     chart.update('none')
@@ -66,33 +78,48 @@ function syncChart() {
   })
 }
 onMounted(() => {
-  mounted = true
+  isMounted = true
   syncChart()
 })
 watch(
   () => [props.series, props.category],
   () => {
-    if (mounted) syncChart()
+    if (isMounted) syncChart()
   },
   { deep: true, flush: 'post' },
 )
 onBeforeUnmount(() => {
-  mounted = false
-  destroy()
+  isMounted = false
+  destroyChart()
 })
 
+function widestYearLabelWidth(ctx: CanvasRenderingContext2D): number {
+  ctx.save()
+  ctx.font = toFont(Chart.defaults.font).string
+  const widths = props.series.flatMap((entry) =>
+    entry.data.map((point) => ctx.measureText(String(point.year)).width),
+  )
+  ctx.restore()
+  return Math.max(0, ...widths)
+}
+function yAxisTickLimit(plotWidth: number): number {
+  return plotWidth < COMPACT_PLOT_WIDTH ? 3 : 5
+}
 function createChartOptions(css: CSSStyleDeclaration): ChartOptions<'line'> {
-  const token = (name: string) => css.getPropertyValue(name).trim()
+  const cssVariable = (name: string) => css.getPropertyValue(name).trim()
   return {
     responsive: true,
     maintainAspectRatio: false,
     animation: false,
     onResize(instance, size) {
       const ticks = instance.options.scales?.y?.ticks
-      if (ticks) ticks.maxTicksLimit = size.width < 480 ? 3 : 5
+      if (ticks) ticks.maxTicksLimit = yAxisTickLimit(size.width)
     },
-    color: token('--color-text-secondary'),
-    font: { family: token('--font-family'), size: parseFloat(css.fontSize) },
+    color: cssVariable('--color-text-secondary'),
+    font: {
+      family: cssVariable('--font-family'),
+      size: parseFloat(css.fontSize),
+    },
     interaction: { mode: 'nearest', intersect: false },
     plugins: {
       tooltip: {
@@ -108,16 +135,7 @@ function createChartOptions(css: CSSStyleDeclaration): ChartOptions<'line'> {
         type: 'linear',
         bounds: 'data',
         afterBuildTicks(scale) {
-          const ctx = scale.chart.ctx
-          ctx.save()
-          ctx.font = toFont(Chart.defaults.font).string
-          const labelWidth = Math.max(
-            0,
-            ...props.series.flatMap((s) =>
-              s.data.map((p) => ctx.measureText(String(p.year)).width),
-            ),
-          )
-          ctx.restore()
+          const labelWidth = widestYearLabelWidth(scale.chart.ctx)
           scale.ticks = yearTicks(
             props.series,
             innerWidth,
@@ -138,7 +156,7 @@ function createChartOptions(css: CSSStyleDeclaration): ChartOptions<'line'> {
       y: {
         beginAtZero: true,
         border: { display: false },
-        grid: { color: token('--color-border-default') },
+        grid: { color: cssVariable('--color-border-default') },
         ticks: {
           maxTicksLimit: 5,
           callback: (value) => Number(value) / 10000,
@@ -164,9 +182,7 @@ function createChartOptions(css: CSSStyleDeclaration): ChartOptions<'line'> {
           height="16"
           viewBox="0 0 24 16"
           aria-hidden="true"
-          :style="{
-            color: `var(${seriesColorTokens[entry.style.colorIndex]})`,
-          }"
+          :style="{ color: `var(${entry.colorToken})` }"
         >
           <line
             x1="0"
@@ -186,7 +202,7 @@ function createChartOptions(css: CSSStyleDeclaration): ChartOptions<'line'> {
       <canvas
         ref="canvas"
         role="img"
-        :aria-label="`${categoryLabel}の人口推移（${series.map((s) => s.prefName).join('、')}）`"
+        :aria-label="chartLabel"
         :aria-describedby="descriptionId"
         >人口の年別値は読み上げ用の表で確認できます。</canvas
       >

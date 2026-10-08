@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
 import Button from '../shared/Button.vue'
+import { isRendered } from '../shared/dom'
 import PrefectureChecklist from './PrefectureChecklist.vue'
 import type { Prefecture } from './prefectureApi'
 const props = withDefaults(
@@ -20,23 +21,36 @@ const emit = defineEmits<{
 const mobileExpanded = ref(false)
 const expanded = computed(() => !props.mobile || mobileExpanded.value)
 const selector = useTemplateRef<HTMLElement>('selector')
-watch(() => props.mobile, moveFocusWhenResizeHidesIt)
-async function moveFocusWhenResizeHidesIt() {
-  const focused = document.activeElement
-  if (!(focused instanceof HTMLElement) || !selector.value?.contains(focused))
-    return
+watch(() => props.mobile, keepFocusVisibleAfterLayoutChange)
+function firstControlOfCurrentLayout(): HTMLElement | null | undefined {
+  const selectorForLayout = props.mobile
+    ? '.toggle-list'
+    : 'input[type="checkbox"]'
+  return selector.value?.querySelector<HTMLElement>(selectorForLayout)
+}
+async function keepFocusVisibleAfterLayoutChange() {
+  const focusedBefore = document.activeElement
+  const wasFocusInside =
+    focusedBefore instanceof HTMLElement &&
+    Boolean(selector.value?.contains(focusedBefore))
+  if (!wasFocusInside) return
   await nextTick()
-  if (focused.getClientRects().length) return
-  const active = document.activeElement
-  if (active !== focused && active !== document.body) return
-  selector.value
-    ?.querySelector<HTMLElement>(
-      props.mobile ? '.toggle-list' : 'input[type="checkbox"]',
-    )
-    ?.focus()
+  if (isRendered(focusedBefore)) return
+  const focusMovedElsewhere =
+    document.activeElement !== focusedBefore &&
+    document.activeElement !== document.body
+  if (focusMovedElsewhere) return
+  firstControlOfCurrentLayout()?.focus()
 }
 const listId = useId()
 const selected = computed(() => new Set(props.modelValue))
+const hasSelection = computed(() => props.modelValue.length > 0)
+const showsSelectionCount = computed(
+  () => !props.status || props.status === 'ready',
+)
+function clearSelection() {
+  emit('update:modelValue', [])
+}
 const selectionSummary = computed(() => {
   const selectedNames = props.prefectures
     .filter((prefecture) => selected.value.has(prefecture.prefCode))
@@ -48,16 +62,16 @@ const selectionSummary = computed(() => {
   if (props.status === 'error') return '都道府県一覧を取得できませんでした'
   return '都道府県は未選択です'
 })
-function select(code: number, checked: boolean) {
+function codesInListOrder(codes: ReadonlySet<number>): number[] {
+  return props.prefectures
+    .filter((prefecture) => codes.has(prefecture.prefCode))
+    .map((prefecture) => prefecture.prefCode)
+}
+function toggleSelection(code: number, checked: boolean) {
   const next = new Set(props.modelValue)
   if (checked) next.add(code)
   else next.delete(code)
-  emit(
-    'update:modelValue',
-    props.prefectures
-      .filter((p) => next.has(p.prefCode))
-      .map((p) => p.prefCode),
-  )
+  emit('update:modelValue', codesInListOrder(next))
 }
 </script>
 <template>
@@ -69,7 +83,7 @@ function select(code: number, checked: boolean) {
     <div class="selector-heading">
       <h2 :id="headingId" class="selector-title">都道府県</h2>
       <p
-        v-if="!status || status === 'ready'"
+        v-if="showsSelectionCount"
         class="selection-count"
         role="status"
         aria-label="選択件数"
@@ -79,8 +93,8 @@ function select(code: number, checked: boolean) {
       <Button
         class="desktop-clear"
         label="選択を解除"
-        :disabled="modelValue.length === 0"
-        @click="emit('update:modelValue', [])"
+        :disabled="!hasSelection"
+        @click="clearSelection"
       />
     </div>
     <p class="selector-description">比較したい都道府県を選択（複数選択可）</p>
@@ -91,14 +105,14 @@ function select(code: number, checked: boolean) {
       :prefectures="prefectures"
       :selected-codes="selected"
       :status="status"
-      @select="select"
+      @select="toggleSelection"
       @retry="emit('retry')"
     />
     <div class="selector-actions">
       <Button
         label="選択を解除"
-        :disabled="modelValue.length === 0"
-        @click="emit('update:modelValue', [])"
+        :disabled="!hasSelection"
+        @click="clearSelection"
       />
       <Button
         class="toggle-list"
