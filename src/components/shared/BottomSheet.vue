@@ -8,8 +8,8 @@ import {
   watch,
 } from 'vue'
 import Button from './Button.vue'
-import { isRendered } from './dom'
-import { isRepeatedClick } from './repeatedClick'
+import { isRendered } from '../../utils/dom'
+import { isRepeatedClick } from '../../utils/repeatedClick'
 
 const FOCUSABLE_SELECTOR =
   'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]'

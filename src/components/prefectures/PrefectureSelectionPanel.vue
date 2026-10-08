@@ -9,7 +9,7 @@ import {
   watch,
 } from 'vue'
 import Button from '../shared/Button.vue'
-import { isRendered } from '../shared/dom'
+import { isRendered } from '../../utils/dom'
 import { useMobileViewport } from '../shared/useMobileViewport'
 import PrefectureSelector from './PrefectureSelector.vue'
 import PrefectureSelectionSheet from './PrefectureSelectionSheet.vue'

@@ -1,5 +1,5 @@
-import { withRequestTimeout } from '../shared/apiRequest'
-import { isRecord } from '../shared/jsonRecord'
+import { withRequestTimeout } from '../../utils/apiRequest'
+import { isRecord } from '../../utils/jsonRecord'
 import { isPrefectureCode } from './prefectureCode'
 
 export interface Prefecture {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
 import Button from '../shared/Button.vue'
-import { isRendered } from '../shared/dom'
+import { isRendered } from '../../utils/dom'
 import PrefectureChecklist from './PrefectureChecklist.vue'
 import type { Prefecture } from './prefectureApi'
 const props = withDefaults(
