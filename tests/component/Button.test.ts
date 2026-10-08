@@ -28,6 +28,14 @@ describe('Button', () => {
     expect(wrapper.emitted('click')).toHaveLength(1)
   })
 
+  test('ダブルクリックの2回目は通知しない', () => {
+    const wrapper = mount(Button, { props: { label: '反映' } })
+    const button = wrapper.get('button').element
+    button.dispatchEvent(new MouseEvent('click', { detail: 1 }))
+    button.dispatchEvent(new MouseEvent('click', { detail: 2 }))
+    expect(wrapper.emitted('click')).toHaveLength(1)
+  })
+
   test('既定ではフォームを送信しない', () => {
     const wrapper = mount(Button, { props: { label: '操作' } })
     expect(wrapper.get('button').element.type).toBe('button')

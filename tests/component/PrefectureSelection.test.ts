@@ -51,19 +51,12 @@ test.each([
     expected: '東京都、北海道',
   },
 ] as const)('スマホで$scenarioの場合は「$expected」を案内する', (example) => {
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn(() => ({
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })),
-  )
   const wrapper = mount(PrefectureSelector, {
     props: {
       prefectures,
       status: example.status,
       modelValue: example.modelValue,
+      mobile: true,
     },
   })
   expect(wrapper.text()).toContain(example.expected)
@@ -90,17 +83,8 @@ test('API順で動的表示し複数選択・個別解除・連続操作・全�
   expect(selected(wrapper)).toEqual([])
 })
 test('スマホは初期closed、開閉後も選択県・件数を保持する', async () => {
-  const media = {
-    matches: true,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  }
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn(() => media),
-  )
   const wrapper = mount(PrefectureSelector, {
-    props: { prefectures, modelValue: [1] },
+    props: { prefectures, modelValue: [1], mobile: true },
   })
   const toggle = wrapper.get('[aria-expanded]')
   expect(toggle.attributes('aria-expanded')).toBe('false')

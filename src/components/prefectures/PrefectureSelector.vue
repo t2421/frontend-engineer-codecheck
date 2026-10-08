@@ -1,15 +1,7 @@
 <script setup lang="ts">
-import {
-  computed,
-  nextTick,
-  onMounted,
-  onScopeDispose,
-  ref,
-  useId,
-  useTemplateRef,
-} from 'vue'
-import Checkbox from '../shared/Checkbox.vue'
+import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
 import Button from '../shared/Button.vue'
+import PrefectureChecklist from './PrefectureChecklist.vue'
 import type { Prefecture } from './prefectureApi'
 const props = withDefaults(
   defineProps<{
@@ -19,42 +11,30 @@ const props = withDefaults(
     status?: 'loading' | 'error' | 'ready'
     mobile?: boolean
   }>(),
-  { headingId: undefined, status: undefined, mobile: undefined },
+  { headingId: undefined, status: undefined, mobile: false },
 )
-const emit = defineEmits<{ 'update:modelValue': [codes: number[]] }>()
-// jsdomにはmatchMediaが無いため、未定義でもReferenceErrorにならないようglobalThis経由で参照する。
-const viewport = globalThis.matchMedia?.('(width < 640px)')
-const mediaMobile = ref(viewport?.matches ?? false)
-const isMobile = computed(() => props.mobile ?? mediaMobile.value)
+const emit = defineEmits<{
+  'update:modelValue': [codes: number[]]
+  retry: []
+}>()
 const mobileExpanded = ref(false)
-const expanded = computed(() => !isMobile.value || mobileExpanded.value)
+const expanded = computed(() => !props.mobile || mobileExpanded.value)
 const selector = useTemplateRef<HTMLElement>('selector')
-async function updateViewport(event: MediaQueryListEvent) {
-  if (props.mobile !== undefined) {
-    mediaMobile.value = event.matches
-    return
-  }
+watch(() => props.mobile, moveFocusWhenResizeHidesIt)
+async function moveFocusWhenResizeHidesIt() {
   const focused = document.activeElement
-  const ownsFocus = selector.value?.contains(focused)
-  mediaMobile.value = event.matches
+  if (!(focused instanceof HTMLElement) || !selector.value?.contains(focused))
+    return
   await nextTick()
-  // Move focus only when this resize hides the currently focused operation.
-  if (
-    ownsFocus &&
-    focused instanceof HTMLElement &&
-    !focused.getClientRects().length
-  ) {
-    const active = document.activeElement
-    if (active !== focused && active !== document.body) return
-    selector.value
-      ?.querySelector<HTMLElement>(
-        isMobile.value ? '.toggle-list' : 'input[type="checkbox"]',
-      )
-      ?.focus()
-  }
+  if (focused.getClientRects().length) return
+  const active = document.activeElement
+  if (active !== focused && active !== document.body) return
+  selector.value
+    ?.querySelector<HTMLElement>(
+      props.mobile ? '.toggle-list' : 'input[type="checkbox"]',
+    )
+    ?.focus()
 }
-onMounted(() => viewport?.addEventListener('change', updateViewport))
-onScopeDispose(() => viewport?.removeEventListener('change', updateViewport))
 const listId = useId()
 const selected = computed(() => new Set(props.modelValue))
 const selectionSummary = computed(() => {
@@ -84,7 +64,7 @@ function select(code: number, checked: boolean) {
   <div
     ref="selector"
     class="prefecture-selector"
-    :class="{ 'is-collapsed': !expanded, 'is-mobile': isMobile }"
+    :class="{ 'is-collapsed': !expanded, 'is-mobile': mobile }"
   >
     <div class="selector-heading">
       <h2 :id="headingId" class="selector-title">都道府県</h2>
@@ -105,20 +85,15 @@ function select(code: number, checked: boolean) {
     </div>
     <p class="selector-description">比較したい都道府県を選択（複数選択可）</p>
     <p class="selection-summary">{{ selectionSummary }}</p>
-    <fieldset :id="listId" class="prefecture-list">
-      <legend class="visually-hidden">比較する都道府県（複数選択可）</legend>
-      <slot name="list">
-        <div class="prefecture-grid">
-          <Checkbox
-            v-for="prefecture in prefectures"
-            :key="prefecture.prefCode"
-            :label="prefecture.prefName"
-            :model-value="selected.has(prefecture.prefCode)"
-            @update:model-value="select(prefecture.prefCode, $event)"
-          />
-        </div>
-      </slot>
-    </fieldset>
+    <PrefectureChecklist
+      :id="listId"
+      class="prefecture-list"
+      :prefectures="prefectures"
+      :selected-codes="selected"
+      :status="status"
+      @select="select"
+      @retry="emit('retry')"
+    />
     <div class="selector-actions">
       <Button
         label="選択を解除"
@@ -177,23 +152,6 @@ function select(code: number, checked: boolean) {
   overflow-wrap: anywhere;
 }
 
-.prefecture-list {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-}
-
-.prefecture-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.prefecture-grid > * {
-  min-width: 0;
-  width: 100%;
-}
-
 .selector-actions {
   display: none;
   flex-wrap: wrap;
@@ -202,33 +160,6 @@ function select(code: number, checked: boolean) {
 
 .toggle-list {
   display: none;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
-
-@container (min-width: 310px) {
-  .prefecture-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 600px) {
-  .prefecture-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    column-gap: var(--space-8);
-  }
-}
-
-@container (min-width: 1100px) {
-  .prefecture-grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
 }
 
 .is-mobile .selector-heading {

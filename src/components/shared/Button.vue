@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import '../../styles/control-label.css'
+import { isRepeatedClick } from './repeatedClick'
 defineOptions({ name: 'SharedButton' })
 
 const props = withDefaults(
@@ -15,7 +16,8 @@ const props = withDefaults(
 const emit = defineEmits<{ click: [event: MouseEvent] }>()
 
 function handleClick(event: MouseEvent) {
-  if (!props.disabled) emit('click', event)
+  if (props.disabled || isRepeatedClick(event)) return
+  emit('click', event)
 }
 </script>
 

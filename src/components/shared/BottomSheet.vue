@@ -1,62 +1,88 @@
 <script setup lang="ts">
-import { nextTick, onScopeDispose, useId, useTemplateRef, watch } from 'vue'
+import {
+  nextTick,
+  onMounted,
+  onScopeDispose,
+  useId,
+  useTemplateRef,
+  watch,
+} from 'vue'
 import Button from './Button.vue'
+import { isRepeatedClick } from './repeatedClick'
 
 defineProps<{ title: string }>()
 const emit = defineEmits<{ closed: [] }>()
 const open = defineModel<boolean>({ default: false })
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
 const titleId = useId()
-let restorePage: (() => void) | undefined
+let leaveModal: (() => void) | undefined
 
-function lockPage() {
+function lockPageScroll() {
   const { scrollX, scrollY } = window
   const body = document.body
-  const previous = {
+  const previousStyle = {
     position: body.style.position,
     top: body.style.top,
     width: body.style.width,
     overflow: body.style.overflow,
   }
-  const trigger = document.activeElement
   Object.assign(body.style, {
     position: 'fixed',
     top: `-${scrollY}px`,
     width: '100%',
     overflow: 'hidden',
   })
-  return () => {
-    Object.assign(body.style, previous)
+  return function unlockPageScroll() {
+    Object.assign(body.style, previousStyle)
     window.scrollTo({ left: scrollX, top: scrollY, behavior: 'instant' })
+  }
+}
+
+function rememberFocus() {
+  const trigger = document.activeElement
+  return function restoreFocus() {
     if (trigger instanceof HTMLElement && trigger.isConnected)
       trigger.focus({ preventScroll: true })
   }
 }
 
-function closeDialog() {
-  const wasOpen = !!restorePage
-  if (dialog.value?.open) dialog.value.close()
-  restorePage?.()
-  restorePage = undefined
-  if (wasOpen) emit('closed')
+function enterModal() {
+  if (leaveModal || !dialog.value) return
+  const unlockPageScroll = lockPageScroll()
+  const restoreFocus = rememberFocus()
+  dialog.value.showModal()
+  leaveModal = () => {
+    if (dialog.value?.open) dialog.value.close()
+    unlockPageScroll()
+    restoreFocus()
+  }
 }
 
-watch(
-  [open, dialog],
-  async ([value]) => {
-    if (value && dialog.value && !dialog.value.open) {
-      restorePage = lockPage()
-      dialog.value.showModal()
-    } else if (!value) {
-      await nextTick()
-      if (!open.value) closeDialog()
-    }
-  },
-  { flush: 'post', immediate: true },
-)
-onScopeDispose(closeDialog)
+function closeSheet() {
+  if (!leaveModal) return
+  leaveModal()
+  leaveModal = undefined
+  emit('closed')
+}
 
-function trapFocus(event: KeyboardEvent) {
+async function closeSheetAfterPageUpdates() {
+  await nextTick()
+  if (!open.value) closeSheet()
+}
+
+watch(open, (value) => (value ? enterModal() : closeSheetAfterPageUpdates()), {
+  flush: 'post',
+})
+onMounted(() => {
+  if (open.value) enterModal()
+})
+onScopeDispose(closeSheet)
+
+function closeOnBackdropClick(event: MouseEvent) {
+  if (!isRepeatedClick(event)) open.value = false
+}
+
+function keepTabInsideSheet(event: KeyboardEvent) {
   const controls = Array.from(
     dialog.value?.querySelectorAll<HTMLElement>(
       'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
@@ -64,10 +90,11 @@ function trapFocus(event: KeyboardEvent) {
   ).filter((element) => element.getClientRects().length)
   const first = controls[0]
   const last = controls.at(-1)
-  const target = event.shiftKey ? last : first
-  if (document.activeElement === (event.shiftKey ? first : last) && target) {
+  const leaving = event.shiftKey ? first : last
+  const wrapTo = event.shiftKey ? last : first
+  if (document.activeElement === leaving && wrapTo) {
     event.preventDefault()
-    target.focus()
+    wrapTo.focus()
   }
 }
 </script>
@@ -80,8 +107,8 @@ function trapFocus(event: KeyboardEvent) {
       :aria-labelledby="titleId"
       aria-modal="true"
       @cancel.prevent="open = false"
-      @click.self="open = false"
-      @keydown.tab="trapFocus"
+      @click.self="closeOnBackdropClick"
+      @keydown.tab="keepTabInsideSheet"
     >
       <div class="sheet-surface">
         <div class="sheet-handle" aria-hidden="true" />

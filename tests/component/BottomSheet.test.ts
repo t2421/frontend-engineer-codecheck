@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { DOMWrapper, mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 import BottomSheet from '../../src/components/shared/BottomSheet.vue'
 
@@ -56,6 +56,14 @@ test.each(['click', 'cancel'])(
     expect(document.activeElement?.textContent).toBe('シートを開く')
   },
 )
+
+test('背景へのダブルクリックの2回目では閉じない', async () => {
+  const { wrapper, dialog } = mountSheet()
+  await wrapper.get('button').trigger('click')
+  dialog.element.dispatchEvent(new MouseEvent('click', { detail: 2 }))
+  await flushPromises()
+  expect(dialog.element).toHaveProperty('open', true)
+})
 
 test('TabとShift+Tabは先頭と末尾を巡回し中間操作を妨げない', async () => {
   const { wrapper, dialog } = mountSheet()

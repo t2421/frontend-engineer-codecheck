@@ -8,7 +8,7 @@ const mounted = ref(true)
 </script>
 <template>
   <main>
-    <h1>共通ハーフシート</h1>
+    <h1>共通ボトムシート</h1>
     <Button label="シートを開く" @click="open = true" />
     <BottomSheet v-if="mounted" v-model="open" title="確認用シート">
       <div class="fixture-content">

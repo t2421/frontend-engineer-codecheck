@@ -2,10 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import BottomSheet from '../shared/BottomSheet.vue'
 import Button from '../shared/Button.vue'
-import Checkbox from '../shared/Checkbox.vue'
-import CheckboxSkeleton from '../shared/CheckboxSkeleton.vue'
-import StatusMessage from '../shared/StatusMessage.vue'
-import { prefectureFailure, type Prefecture } from './prefectureApi'
+import PrefectureChecklist from './PrefectureChecklist.vue'
+import type { Prefecture } from './prefectureApi'
 
 const props = defineProps<{
   prefectures: readonly Prefecture[]
@@ -14,31 +12,31 @@ const props = defineProps<{
 }>()
 const open = defineModel<boolean>({ default: false })
 const emit = defineEmits<{ apply: [codes: number[]]; retry: []; closed: [] }>()
-const draft = ref(new Set<number>())
+const draftCodes = ref(new Set<number>())
 watch(
   open,
   (value) => {
-    if (value) draft.value = new Set(props.selectedCodes)
+    if (value) draftCodes.value = new Set(props.selectedCodes)
   },
   { immediate: true },
 )
-const selectedNames = computed(() =>
-  props.prefectures
-    .filter((prefecture) => draft.value.has(prefecture.prefCode))
-    .map((prefecture) => prefecture.prefName)
-    .join('、'),
+const draftPrefectures = computed(() =>
+  props.prefectures.filter((prefecture) =>
+    draftCodes.value.has(prefecture.prefCode),
+  ),
+)
+const draftNames = computed(() =>
+  draftPrefectures.value.map((prefecture) => prefecture.prefName).join('、'),
 )
 function select(code: number, checked: boolean) {
-  if (checked) draft.value.add(code)
-  else draft.value.delete(code)
+  if (checked) draftCodes.value.add(code)
+  else draftCodes.value.delete(code)
 }
-function apply(event: MouseEvent) {
-  if (!open.value || props.status !== 'ready' || event.detail > 1) return
+function apply() {
+  if (!open.value) return
   emit(
     'apply',
-    props.prefectures
-      .filter((prefecture) => draft.value.has(prefecture.prefCode))
-      .map((prefecture) => prefecture.prefCode),
+    draftPrefectures.value.map((prefecture) => prefecture.prefCode),
   )
   open.value = false
 }
@@ -49,48 +47,25 @@ function apply(event: MouseEvent) {
     <div class="selection-sheet">
       <div class="selection-summary">
         <p v-if="status === 'ready'" class="selection-count" role="status">
-          {{ draft.size }} / {{ prefectures.length }} 選択中
-        </p>
-        <p v-else-if="status === 'loading'" role="status">
-          都道府県一覧を読み込んでいます…
+          {{ draftCodes.size }} / {{ prefectures.length }} 選択中
         </p>
         <p class="selected-names">
-          {{ selectedNames || '都道府県は未選択です' }}
+          {{ draftNames || '都道府県は未選択です' }}
         </p>
       </div>
       <div class="selection-list">
-        <fieldset v-if="status === 'ready'" class="prefecture-grid">
-          <legend class="visually-hidden">
-            比較する都道府県（複数選択可）
-          </legend>
-          <Checkbox
-            v-for="prefecture in prefectures"
-            :key="prefecture.prefCode"
-            :label="prefecture.prefName"
-            :model-value="draft.has(prefecture.prefCode)"
-            @update:model-value="select(prefecture.prefCode, $event)"
-          />
-        </fieldset>
-        <div v-else-if="status === 'loading'" aria-busy="true">
-          <div class="prefecture-grid" aria-hidden="true">
-            <CheckboxSkeleton v-for="item in 47" :key="item" />
-          </div>
-        </div>
-        <StatusMessage
-          v-else
-          state="error"
-          :title="prefectureFailure"
-          description="接続を確認して、もう一度お試しください。"
-        >
-          <template #action
-            ><Button label="再読み込み" @click="emit('retry')"
-          /></template>
-        </StatusMessage>
+        <PrefectureChecklist
+          :prefectures="prefectures"
+          :selected-codes="draftCodes"
+          :status="status"
+          @select="select"
+          @retry="emit('retry')"
+        />
       </div>
       <div class="selection-actions">
         <p>一覧は上下にスクロールできます</p>
         <Button
-          :label="`${draft.size} 都道府県をグラフに反映`"
+          :label="`${draftCodes.size} 都道府県をグラフに反映`"
           :disabled="status !== 'ready'"
           @click="apply"
         />
@@ -137,21 +112,6 @@ function apply(event: MouseEvent) {
   container-type: inline-size;
 }
 
-.prefecture-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-  min-width: 0;
-  padding: 0;
-  margin: 0;
-  border: 0;
-}
-
-.prefecture-grid > * {
-  min-width: 0;
-  width: 100%;
-}
-
 .selection-actions {
   display: grid;
   flex-shrink: 0;
@@ -170,19 +130,5 @@ function apply(event: MouseEvent) {
   /* Figmaの固定アクションは高さ52px。 */
   min-height: 52px;
   width: 100%;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
-
-@container (min-width: 310px) {
-  .prefecture-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 </style>

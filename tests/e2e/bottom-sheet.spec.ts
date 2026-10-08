@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { checkAccessibility } from './accessibility'
 import { captureScreenshot } from './screenshot'
 
-test.describe('共通ハーフシート', () => {
+test.describe('共通ボトムシート', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
   })

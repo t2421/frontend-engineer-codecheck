@@ -8,15 +8,13 @@ import type { PopulationLoader } from '../components/population/usePopulationDat
 import type { Prefecture } from '../components/prefectures/prefectureApi'
 import type { PopulationCategory } from '../components/population/populationApi'
 import populationMark from '../assets/population-mark.svg'
-import { useMobileViewport } from '../components/prefectures/useMobileViewport'
 defineProps<{
   prefectureLoader?: PrefectureLoader
   populationLoader?: PopulationLoader
 }>()
 const selectedPrefectures = ref<Prefecture[]>([])
 const category = ref<PopulationCategory>('total')
-const controlHeight = ref<number>()
-const isMobile = useMobileViewport()
+const floatingControlHeight = ref(0)
 </script>
 
 <template>
@@ -39,11 +37,7 @@ const isMobile = useMobileViewport()
     id="main-content"
     class="main-content"
     tabindex="-1"
-    :style="{
-      '--floating-control-height': controlHeight
-        ? `${controlHeight}px`
-        : undefined,
-    }"
+    :style="{ '--floating-control-height': `${floatingControlHeight}px` }"
   >
     <PageTitle
       title="都道府県別の人口推移"
@@ -57,9 +51,9 @@ const isMobile = useMobileViewport()
       <PrefectureSelectionPanel
         v-model="selectedPrefectures"
         :loader="prefectureLoader"
-        :is-mobile="isMobile"
+        sheet-on-mobile
         heading-id="prefectures-title"
-        @control-height="controlHeight = $event"
+        @floating-control-height="floatingControlHeight = $event"
       />
     </section>
 
@@ -186,14 +180,12 @@ const isMobile = useMobileViewport()
   }
 
   .main-content {
+    --gap-above-floating-control: var(--space-16);
+
     padding-block: var(--space-16);
-
-    /* 初回の計測前もFigmaの52pxボタンと上下余白・safe-areaを確保する。 */
-    --floating-control-height: calc(
-      52px + var(--space-24) + env(safe-area-inset-bottom)
+    padding-block-end: calc(
+      var(--floating-control-height) + var(--gap-above-floating-control)
     );
-
-    padding-block-end: calc(var(--floating-control-height) + var(--space-16));
   }
 
   .prefectures {
