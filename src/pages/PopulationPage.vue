@@ -14,6 +14,7 @@ defineProps<{
 }>()
 const selectedPrefectures = ref<Prefecture[]>([])
 const category = ref<PopulationCategory>('total')
+const floatingControlHeight = ref(0)
 </script>
 
 <template>
@@ -32,7 +33,12 @@ const category = ref<PopulationCategory>('total')
     </div>
   </header>
 
-  <main id="main-content" class="main-content" tabindex="-1">
+  <main
+    id="main-content"
+    class="main-content"
+    tabindex="-1"
+    :style="{ '--floating-control-height': `${floatingControlHeight}px` }"
+  >
     <PageTitle
       title="都道府県別の人口推移"
       description="都道府県と人口の区分を選んで、変化を比べられます。"
@@ -45,7 +51,9 @@ const category = ref<PopulationCategory>('total')
       <PrefectureSelectionPanel
         v-model="selectedPrefectures"
         :loader="prefectureLoader"
+        sheet-on-mobile
         heading-id="prefectures-title"
+        @floating-control-height="floatingControlHeight = $event"
       />
     </section>
 
@@ -172,7 +180,16 @@ const category = ref<PopulationCategory>('total')
   }
 
   .main-content {
+    --gap-above-floating-control: var(--space-16);
+
     padding-block: var(--space-16);
+    padding-block-end: calc(
+      var(--floating-control-height) + var(--gap-above-floating-control)
+    );
+  }
+
+  .prefectures {
+    display: none;
   }
 
   .header-description {

@@ -1,19 +1,91 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import CheckboxSkeleton from '../shared/CheckboxSkeleton.vue'
-import StatusMessage from '../shared/StatusMessage.vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onScopeDispose,
+  ref,
+  useTemplateRef,
+  watch,
+} from 'vue'
 import Button from '../shared/Button.vue'
+import { useMobileViewport } from '../shared/useMobileViewport'
 import PrefectureSelector from './PrefectureSelector.vue'
-import { prefectureFailure, type Prefecture } from './prefectureApi'
+import PrefectureSelectionSheet from './PrefectureSelectionSheet.vue'
+import type { Prefecture } from './prefectureApi'
 import { usePrefectures, type PrefectureLoader } from './usePrefectures'
 const props = defineProps<{
   headingId?: string
   modelValue: readonly Prefecture[]
   loader?: PrefectureLoader
+  sheetOnMobile?: boolean
 }>()
-const emit = defineEmits<{ 'update:modelValue': [prefectures: Prefecture[]] }>()
+const emit = defineEmits<{
+  'update:modelValue': [prefectures: Prefecture[]]
+  'floating-control-height': [height: number]
+}>()
 const { prefectures, status, retry } = usePrefectures(props.loader)
+const { isMobile } = useMobileViewport()
+const sheetMode = computed(() => Boolean(props.sheetOnMobile) && isMobile.value)
 const codes = computed(() => props.modelValue.map((p) => p.prefCode))
+const sheetOpen = ref(false)
+const inlineList = useTemplateRef<HTMLElement>('inlineList')
+const floatingControl = useTemplateRef<HTMLElement>('floatingControl')
+
+let lastFocused: EventTarget | null = null
+function trackLastFocused(event: FocusEvent) {
+  lastFocused = event.target
+}
+function focusedBeforeLayoutChange(): Node | null {
+  const active = document.activeElement
+  const focused = active === document.body ? lastFocused : active
+  return focused instanceof Node ? focused : null
+}
+
+let heightObserver: ResizeObserver | undefined
+onMounted(() => {
+  document.addEventListener('focusin', trackLastFocused)
+  if (typeof ResizeObserver === 'undefined' || !floatingControl.value) return
+  heightObserver = new ResizeObserver(() => {
+    const height = floatingControl.value?.getBoundingClientRect().height
+    if (height) emit('floating-control-height', height)
+  })
+  heightObserver.observe(floatingControl.value)
+})
+onScopeDispose(() => {
+  heightObserver?.disconnect()
+  document.removeEventListener('focusin', trackLastFocused)
+})
+
+watch(sheetMode, async (entersSheetMode) => {
+  const focused = focusedBeforeLayoutChange()
+  const focusWasInline = Boolean(focused && inlineList.value?.contains(focused))
+  const focusWasOnFloatingControl = Boolean(
+    focused && floatingControl.value?.contains(focused),
+  )
+  if (!entersSheetMode && sheetOpen.value) {
+    sheetOpen.value = false
+    return
+  }
+  await nextTick()
+  if (entersSheetMode && focusWasInline) focusFloatingControl()
+  else if (!entersSheetMode && focusWasOnFloatingControl) focusInlineList()
+})
+
+function focusFloatingControl() {
+  floatingControl.value?.querySelector('button')?.focus({ preventScroll: true })
+}
+function focusInlineList() {
+  if (sheetMode.value) return
+  const list = inlineList.value
+  const firstControl =
+    list?.querySelector<HTMLElement>('input[type="checkbox"]') ??
+    Array.from(
+      list?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [],
+    ).find((button) => button.getClientRects().length) ??
+    list
+  firstControl?.focus()
+}
 function update(codes: number[]) {
   const selected = new Set(codes)
   emit(
@@ -23,73 +95,69 @@ function update(codes: number[]) {
 }
 </script>
 <template>
-  <PrefectureSelector
-    :heading-id="headingId"
-    :prefectures="prefectures"
-    :model-value="codes"
-    :status="status"
-    @update:model-value="update"
+  <div
+    ref="inlineList"
+    tabindex="-1"
+    class="inline-list"
+    :class="{ 'is-hidden': sheetMode }"
   >
-    <template v-if="status !== 'ready'" #list>
-      <!-- 読み上げ領域はbusy領域の外に置き、読み込み中の通知が抑止されないようにする。 -->
-      <p v-if="status === 'loading'" role="status" class="loading-status">
-        都道府県一覧を読み込んでいます…
-      </p>
-      <div v-if="status === 'loading'" class="loading-list" aria-busy="true">
-        <div class="loading-grid" aria-hidden="true">
-          <CheckboxSkeleton v-for="item in 47" :key="item" />
-        </div>
-      </div>
-      <StatusMessage
-        v-else
-        state="error"
-        :title="prefectureFailure"
-        description="接続を確認して、もう一度お試しください。"
-      >
-        <template #action
-          ><Button label="再読み込み" @click="retry"
-        /></template>
-      </StatusMessage>
-    </template>
-  </PrefectureSelector>
+    <PrefectureSelector
+      :heading-id="headingId"
+      :prefectures="prefectures"
+      :model-value="codes"
+      :status="status"
+      :mobile="isMobile"
+      @update:model-value="update"
+      @retry="retry"
+    />
+  </div>
+  <Teleport to="body">
+    <div
+      ref="floatingControl"
+      class="floating-control"
+      :class="{ 'is-hidden': !sheetMode }"
+    >
+      <Button
+        :label="`都道府県を選択 · ${codes.length} 選択中`"
+        aria-haspopup="dialog"
+        :aria-expanded="sheetOpen"
+        @click="sheetOpen = true"
+      />
+    </div>
+  </Teleport>
+  <PrefectureSelectionSheet
+    v-model="sheetOpen"
+    :prefectures="prefectures"
+    :selected-codes="codes"
+    :status="status"
+    @apply="update"
+    @retry="retry"
+    @closed="focusInlineList"
+  />
 </template>
 <style scoped>
-.loading-status {
-  margin-block-end: var(--space-20);
-  color: var(--color-text-secondary);
+.inline-list.is-hidden {
+  display: none;
 }
 
-.loading-list {
-  color: var(--color-text-secondary);
-  container-type: inline-size;
+.floating-control {
+  position: fixed;
+  z-index: 2;
+  inset-inline: 0;
+  bottom: 0;
+  padding: var(--space-12) var(--space-16)
+    calc(var(--space-12) + env(safe-area-inset-bottom));
+  background: var(--color-bg-surface);
 }
 
-.loading-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.loading-grid > * {
+.floating-control .button {
+  /* Figmaのフローティングボタンは高さ52px。 */
+  min-height: 52px;
   width: 100%;
 }
 
-@container (min-width: 310px) {
-  .loading-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 600px) {
-  .loading-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    column-gap: var(--space-8);
-  }
-}
-
-@container (min-width: 1100px) {
-  .loading-grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
+.floating-control.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 </style>
