@@ -1,102 +1,70 @@
-import { expect, test, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { h } from 'vue'
 import StatusMessage from '../../src/components/shared/StatusMessage.vue'
 import Button from '../../src/components/shared/Button.vue'
 
-test('compact表示でもloading通知をbusy領域の外へ保つ', () => {
-  const wrapper = mount(StatusMessage, {
-    props: { state: 'loading', title: '読み込み中', compact: true },
-  })
-  expect(wrapper.get('.status-message').classes()).toContain(
-    'status-message-compact',
-  )
-  expect(wrapper.get('[role="status"]').text()).toBe('読み込み中')
-  expect(
-    wrapper.get('[role="status"]').element.closest('[aria-busy="true"]'),
-  ).toBeNull()
-})
+describe('StatusMessage', () => {
+  test.each([
+    { state: 'empty', role: 'status', live: 'polite', busy: 'false' },
+    { state: 'loading', role: 'status', live: 'polite', busy: 'true' },
+    { state: 'error', role: 'alert', live: 'assertive', busy: 'false' },
+  ] as const)(
+    '$state は見出しと説明を表示し、読み上げ領域を role=$role で busy 領域の外に置く',
+    ({ state, role, live, busy }) => {
+      const wrapper = mount(StatusMessage, {
+        props: { state, title: '見出し', description: '説明' },
+      })
+      expect(wrapper.get('h3').text()).toBe('見出し')
+      expect(wrapper.get('p').text()).toBe('説明')
+      expect(wrapper.get('img').attributes('alt')).toBe('')
+      expect(wrapper.get('.status-message').attributes('aria-busy')).toBe(busy)
 
-test.each([
-  [
-    'empty',
-    '都道府県を選択すると、人口の推移を確認できます',
-    '比較したい都道府県にチェックを入れると、人口の推移を表示します。',
-    'status',
-  ],
-  ['loading', '人口データを読み込み中…', 'しばらくお待ちください。', 'status'],
-  [
-    'error',
-    '人口データを取得できませんでした',
-    '接続を確認して、もう一度お試しください。',
-    'alert',
-  ],
-  [
-    'error',
-    '都道府県一覧を取得できませんでした',
-    '接続を確認して、一覧を再読み込みしてください。',
-    'alert',
-  ],
-] as const)(
-  '%sの文言と読み上げの役割を表示する',
-  (state, title, description, role) => {
-    const wrapper = mount(StatusMessage, {
-      props: { state, title, description },
-    })
-    const message = wrapper.get(`[role="${role}"]`)
-    expect(message.text()).toBe(title + description)
-    expect(message.attributes('aria-live')).toBe(
-      role === 'alert' ? 'assertive' : 'polite',
-    )
-    expect(message.attributes('aria-atomic')).toBe('true')
-    expect(message.attributes('aria-busy')).toBeUndefined()
-    expect(message.element.closest('[aria-busy="true"]')).toBeNull()
-    expect(wrapper.get('.status-message').attributes('aria-busy')).toBe(
-      state === 'loading' ? 'true' : 'false',
-    )
-    expect(wrapper.get('h3').text()).toBe(title)
-    expect(wrapper.get('img').attributes('alt')).toBe('')
-    expect(wrapper.find('button').exists()).toBe(false)
-  },
-)
-
-test('同じ部品の状態と文言を更新でき、読み込み終了を反映する', async () => {
-  const wrapper = mount(StatusMessage, {
-    props: { state: 'empty', title: '未選択' },
-  })
-  expect(wrapper.find('p').exists()).toBe(false)
-  expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-  await wrapper.setProps({
-    state: 'loading',
-    title: '読み込み中',
-    description: 'お待ちください',
-  })
-  expect(wrapper.get('[role="status"]').text()).toBe('読み込み中お待ちください')
-  expect(wrapper.get('.status-message').attributes('aria-busy')).toBe('true')
-  await wrapper.setProps({
-    state: 'error',
-    title: '取得失敗',
-    description: '再試行してください',
-  })
-  expect(wrapper.get('[role="alert"]').text()).toBe(
-    '取得失敗再試行してください',
-  )
-  expect(wrapper.get('.status-message').attributes('aria-busy')).toBe('false')
-  expect(wrapper.find('[role="status"]').exists()).toBe(false)
-})
-
-test('任意の操作はslotで提供し呼び出し元の再試行を通知する', async () => {
-  const retry = vi.fn()
-  const wrapper = mount(StatusMessage, {
-    props: { state: 'error', title: '取得失敗', headingLevel: 2 },
-    slots: {
-      action: () => h(Button, { label: '再読み込み', onClick: retry }),
+      const announcement = wrapper.get(`[role="${role}"]`)
+      expect(announcement.text()).toBe('見出し説明')
+      expect(announcement.attributes('aria-live')).toBe(live)
+      expect(announcement.attributes('aria-atomic')).toBe('true')
+      expect(announcement.element.closest('[aria-busy="true"]')).toBeNull()
     },
+  )
+
+  test('説明を省略でき、状態の更新で読み上げの役割と busy を切り替える', async () => {
+    const wrapper = mount(StatusMessage, {
+      props: { state: 'empty', title: '未選択' },
+    })
+    expect(wrapper.find('p').exists()).toBe(false)
+    await wrapper.setProps({ state: 'loading', title: '読み込み中' })
+    expect(wrapper.get('[role="status"]').text()).toBe('読み込み中')
+    expect(wrapper.get('.status-message').attributes('aria-busy')).toBe('true')
+    await wrapper.setProps({ state: 'error', title: '取得失敗' })
+    expect(wrapper.get('[role="alert"]').text()).toBe('取得失敗')
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    expect(wrapper.get('.status-message').attributes('aria-busy')).toBe('false')
   })
-  expect(wrapper.get('h2').text()).toBe('取得失敗')
-  expect(wrapper.get('[role="alert"]').find('button').exists()).toBe(false)
-  await wrapper.get('button').trigger('click')
-  expect(retry).toHaveBeenCalledTimes(1)
-  expect(wrapper.get('.status-message').attributes('aria-busy')).toBe('false')
-  expect(wrapper.get('[role="alert"]').text()).toBe('取得失敗')
+
+  test('compact 表示でも読み上げ領域は busy 領域の外に保つ', () => {
+    const wrapper = mount(StatusMessage, {
+      props: { state: 'loading', title: '読み込み中', compact: true },
+    })
+    expect(wrapper.get('.status-message').classes()).toContain(
+      'status-message-compact',
+    )
+    expect(
+      wrapper.get('[role="status"]').element.closest('[aria-busy="true"]'),
+    ).toBeNull()
+  })
+
+  test('action slot の操作を読み上げ領域の外に置き、見出しレベルを指定できる', async () => {
+    const retry = vi.fn()
+    const wrapper = mount(StatusMessage, {
+      props: { state: 'error', title: '取得失敗', headingLevel: 2 },
+      slots: {
+        action: () => h(Button, { label: '再読み込み', onClick: retry }),
+      },
+    })
+    expect(wrapper.get('h2').text()).toBe('取得失敗')
+    expect(wrapper.get('[role="alert"]').find('button').exists()).toBe(false)
+    await wrapper.get('button').trigger('click')
+    expect(retry).toHaveBeenCalledTimes(1)
+  })
 })

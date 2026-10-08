@@ -65,6 +65,7 @@
 - `wrapper.vm`は使わない。親との連携を見るときはホスト部品に`<output>`などで値を描画し、DOMで確かめる。子部品の`props()`やクラス名ではなく、表示結果で確かめる。[公式]
 - 要素は役割・ラベル・テキスト・属性で探す。クラス名セレクタは新たに増やさない。[慣例]
 - `test.each`で入力を並べ、`describe`+`beforeEach`で共通の準備をまとめる。fake timersは`afterEach`で`vi.useRealTimers()`。[公式]
+- `describe`は「対象（＋観点）」で区切り、テスト名は「どう操作したら何が起きるか」の一文にする。応答のタイミングを操作するときは`tests/fixtures/deferred.ts`、部品内の要素探索は`tests/component/queries.ts`（ラベル・役割・値で探す）を使い、同じ準備や`let resolve!`の書き方を各テストで繰り返さない。[慣例]
 
 ### Playwright
 
@@ -73,6 +74,7 @@
 - `page.evaluate`はロケータで表せない値（Chart.js内部など）に限り、操作直後の値は`expect.poll`で再試行する。[慣例]
 - 共通の`goto`は`test.describe`+`beforeEach`に置き、`page.route`は`goto`より前に登録する。[公式]
 - 記録用のスクリーンショットは`captureScreenshot`（`testInfo.outputPath`+添付）、横溢れは`expectNoHorizontalOverflow`、axeは`checkAccessibility`を使う。固定パスへの保存はしない。axeは表示が安定してから実行し、`incomplete`は手動確認として記録する。[公式]
+- 実アプリの操作は`tests/e2e/app.ts`（下部ボタン・シート・区分・状態文言のロケータ、PC/スマホ両対応の`setPrefectureChecked`）、APIのrouteモックは`tests/e2e/apiMock.ts`（`mockPrefectures`・`mockPopulation`・遅延用の`gate`）、Chart.jsの実体の読み取りは`tests/e2e/chart.ts`（`chartSnapshot`）を使う。幅のマトリクスは640pxの境界をまたぐ代表幅（例: 1440と390）に絞り、同じレイアウトの幅を重ねない。[慣例]
 - 設定: CIだけ`retries: 2`・`workers: 1`、`expect.timeout`は5秒、trace・screenshotは失敗時のみ。[公式]
 - fixtureは`tests/fixtures/`で共有し、`tests/preview/`の確認ページはローカル・CI専用。
 
