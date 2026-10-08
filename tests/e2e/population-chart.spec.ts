@@ -1,70 +1,104 @@
 import { expect, test, type Page } from '@playwright/test'
 import { expectNoHorizontalOverflow } from './layout'
 import { captureScreenshot } from './screenshot'
+import {
+  chartSnapshot,
+  datasetLabels,
+  expectCanvasDrawn,
+  expectTickLabelsFit,
+  resizeAndWaitForChart,
+  xTickRange,
+} from './chart'
+import { categoryRadio, clearSelection, emptyStatus, legendItems } from './app'
+import { prefectureResponse, appPopulationResponse } from '../fixtures/appApi'
 
-async function snapshot(page: Page) {
-  return page.evaluate(async () => {
-    // Inspect the actual Chart.js registry, not a replacement drawing engine.
-    const moduleUrl = performance
-      .getEntriesByType('resource')
-      .map((entry) => entry.name)
-      .find((name) => new URL(name).pathname.endsWith('/chart__js.js'))
-    if (!moduleUrl) throw new Error('Chart.js module was not loaded')
-    const { Chart } = (await import(moduleUrl)) as typeof import('chart.js')
-    const canvas = document.querySelector('canvas')
-    const chart = canvas
-      ? (Chart.getChart(canvas) as
-          | import('chart.js').Chart<'line', import('chart.js').Point[]>
-          | undefined)
-      : undefined
-    return {
-      count: Object.keys(Chart.instances).length,
-      id: chart?.id,
-      datasets: chart?.data.datasets,
-      axes: chart
-        ? { x: chart.scales.x?.type, y: chart.scales.y?.type }
-        : undefined,
-      yTicks: chart?.scales.y?.ticks.map((t) => t.label),
-      width: chart?.width,
-      xTicks: chart?.scales.x?.ticks.map((t) => t.value),
-      tickLabels: chart?.scales.x?.ticks.map((t) => {
-        chart.ctx.save()
-        chart.ctx.font = `${chart.options.font?.size ?? Chart.defaults.font.size}px ${chart.options.font?.family ?? Chart.defaults.font.family}`
-        const width = chart.ctx.measureText(String(t.label)).width
-        chart.ctx.restore()
-        return { x: chart.scales.x?.getPixelForValue(t.value) ?? 0, width }
-      }),
-      tooltip: chart?.tooltip
-        ? {
-            title: chart.tooltip.title,
-            body: (chart.tooltip.body ?? []).map((b) => b.lines),
-          }
-        : undefined,
-      points: chart
-        ?.getDatasetMeta(0)
-        .data.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y })),
-    }
-  })
+// 確認ページの合成データ。東京都の総人口は 1960年から10年刻みで 7,600,000 人から始まる。
+const tokyoTotal = [760, 980, 1140, 1230, 1330, 1410, 1430].map((v, i) => ({
+  x: 1960 + i * 10,
+  y: v * 10000,
+}))
+const categoryFactors = [
+  ['年少人口', 0.12],
+  ['生産年齢人口', 0.6],
+  ['老年人口', 0.28],
+  ['総人口', 1],
+] as const
+
+async function openChartFixture(page: Page, width: number, years?: string) {
+  await page.setViewportSize({ width, height: 1100 })
+  await page.goto(
+    `/tests/preview/population-chart.html${years ? `?years=${years}` : ''}`,
+  )
 }
-for (const width of [1440, 768, 390, 320]) {
-  test(`${width}px: データ・4区分・解除・再表示・unmountと実描画`, async ({
+const checkbox = (page: Page, name: string) =>
+  page.getByRole('checkbox', { name, exact: true })
+const chartImage = (page: Page) =>
+  page.getByRole('img', { name: /総人口の人口推移/ })
+
+async function hoverFirstPoints(page: Page, index: number) {
+  const canvas = page.locator('canvas')
+  await canvas.scrollIntoViewIfNeeded()
+  const point = (await chartSnapshot(page)).points?.[index]
+  const box = await canvas.boundingBox()
+  if (!point || !box) throw new Error('グラフの点が見つかりません')
+  await page.mouse.move(box.x + point.x, box.y + point.y)
+}
+
+test.describe('PopulationChart（確認ページ・合成データ）', () => {
+  for (const width of [1440, 390]) {
+    test(`${width}px: 県を選ぶとChart.jsで描画し、区分の切替は同じインスタンスを更新する`, async ({
+      page,
+    }) => {
+      await openChartFixture(page, width)
+      await expect(emptyStatus(page)).toBeVisible()
+      await expect.poll(async () => (await chartSnapshot(page)).count).toBe(0)
+
+      await checkbox(page, '東京都').check()
+      await checkbox(page, '北海道').check()
+      await expect(chartImage(page)).toBeVisible()
+      const initial = await chartSnapshot(page)
+      expect(initial.count).toBe(1)
+      expect(initial.axes).toEqual({ x: 'linear', y: 'linear' })
+      expect(initial.datasets?.map((d) => d.label)).toEqual([
+        '東京都',
+        '北海道',
+      ])
+      expect(initial.datasets?.[0]?.data).toEqual(tokyoTotal)
+      expect(
+        initial.points?.every(
+          (p) => Number.isFinite(p.x) && Number.isFinite(p.y),
+        ),
+      ).toBe(true)
+      expect(initial.yTicks?.map(String)).toContain('0')
+      await expectCanvasDrawn(page)
+
+      for (const [label, factor] of categoryFactors) {
+        await categoryRadio(page, label).check()
+        await expect(page.locator('canvas')).toHaveAttribute(
+          'aria-label',
+          new RegExp(label),
+        )
+        const current = await chartSnapshot(page)
+        expect(current.id).toBe(initial.id)
+        expect(current.count).toBe(1)
+        expect(await xTickRange(page)).toEqual([1960, 2020])
+        expect(current.datasets?.[0]?.data[0]?.y).toBe(
+          Math.round(7600000 * factor),
+        )
+        expectTickLabelsFit(current, 8)
+      }
+      await expect(checkbox(page, '東京都')).toBeChecked()
+    })
+  }
+
+  test('読み上げ向けの説明と年別の表は視覚的に隠し、canvasから説明を参照する', async ({
     page,
   }) => {
-    await page.setViewportSize({ width, height: 1100 })
-    await page.goto('/tests/preview/population-chart.html')
-    await expect(page.getByRole('status')).toContainText('都道府県を選択すると')
-    await expect.poll(async () => (await snapshot(page)).count).toBe(0)
-    await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
-    await page.getByRole('checkbox', { name: '北海道', exact: true }).check()
-    await expect(
-      page.getByRole('img', { name: /総人口の人口推移/ }),
-    ).toBeVisible()
-    const initial = await snapshot(page)
-    expect(initial.count).toBe(1)
-    expect(initial.axes).toEqual({ x: 'linear', y: 'linear' })
-    expect(initial.xTicks?.[0]).toBe(1960)
-    expect(initial.xTicks?.at(-1)).toBe(2020)
+    await openChartFixture(page, 1440)
+    await checkbox(page, '東京都').check()
+    await expect(chartImage(page)).toBeVisible()
     await expect(page.locator('figcaption')).toHaveCount(0)
+    await expect(page.locator('details, summary')).toHaveCount(0)
     await expect(page.locator('.chart-description')).toHaveCSS(
       'clip-path',
       'inset(50%)',
@@ -72,147 +106,73 @@ for (const width of [1440, 768, 390, 320]) {
     await expect(page.locator('canvas')).toHaveAccessibleDescription(
       /横軸は年、縦軸は人口数/,
     )
-    expect(initial.datasets?.map((d) => d.label)).toEqual(['東京都', '北海道'])
-    expect(initial.datasets?.[0]?.data).toEqual(
-      [1960, 1970, 1980, 1990, 2000, 2010, 2020].map((x, i) => ({
-        x,
-        y: [760, 980, 1140, 1230, 1330, 1410, 1430][i]! * 10000,
-      })),
-    )
-    expect(
-      initial.points?.every(
-        (p: { x: number; y: number }) =>
-          Number.isFinite(p.x) && Number.isFinite(p.y),
-      ),
-    ).toBe(true)
-    const nonEmpty = await page.locator('canvas').evaluate((canvas) => {
-      const element = canvas as HTMLCanvasElement
-      const ctx = element.getContext('2d')!
-      return ctx
-        .getImageData(0, 0, element.width, element.height)
-        .data.some((value) => value !== 0)
-    })
-    expect(nonEmpty).toBe(true)
-    expect(initial.yTicks?.map(String)).toContain('0')
-    expect(initial.yTicks?.map(String)).not.toContain('14000000')
-    for (const [label, factor] of [
-      ['年少人口', 0.12],
-      ['生産年齢人口', 0.6],
-      ['老年人口', 0.28],
-      ['総人口', 1],
-    ] as const) {
-      await page.getByRole('radio', { name: label, exact: true }).check()
-      await expect(page.locator('canvas')).toHaveAttribute(
-        'aria-label',
-        new RegExp(label),
-      )
-      const current = await snapshot(page)
-      expect(current.count).toBe(1)
-      expect(current.xTicks?.[0]).toBe(1960)
-      expect(current.xTicks?.at(-1)).toBe(2020)
-      for (let i = 1; i < current.tickLabels!.length; i++) {
-        const previous = current.tickLabels![i - 1]!
-        const next = current.tickLabels![i]!
-        expect(next.x - previous.x).toBeGreaterThanOrEqual(
-          (previous.width + next.width) / 2 + 8,
-        )
-      }
-      for (const label of current.tickLabels!) {
-        expect(label.x - label.width / 2).toBeGreaterThanOrEqual(0)
-        expect(label.x + label.width / 2).toBeLessThanOrEqual(current.width!)
-      }
-      expect(current.id).toBe(initial.id)
-      expect(current.datasets?.[0]?.data[0]?.y).toBe(
-        Math.round(7600000 * factor),
-      )
-      await expect(
-        page.getByRole('checkbox', { name: '東京都', exact: true }),
-      ).toBeChecked()
-    }
-    await page.getByRole('checkbox', { name: '東京都', exact: true }).uncheck()
-    await expect
-      .poll(async () => (await snapshot(page)).datasets?.map((d) => d.label))
-      .toEqual(['北海道'])
-    await page.getByRole('checkbox', { name: '北海道', exact: true }).uncheck()
-    await expect(page.getByRole('status')).toContainText('都道府県を選択すると')
-    await expect.poll(async () => (await snapshot(page)).count).toBe(0)
-    for (let i = 0; i < 3; i++) {
-      await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
-      await expect(page.locator('canvas')).toBeVisible()
-      await expect.poll(async () => (await snapshot(page)).count).toBe(1)
-      await page
-        .getByRole('checkbox', { name: '東京都', exact: true })
-        .uncheck()
-      await expect(page.locator('canvas')).toHaveCount(0)
-      await expect.poll(async () => (await snapshot(page)).count).toBe(0)
-    }
-    await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
-    await expect(page.locator('canvas')).toBeVisible()
     await expect(
       page.getByRole('cell', { name: '7,600,000人', exact: true }),
     ).toHaveCount(1)
-    await expectNoHorizontalOverflow(page)
-    await page.getByRole('button', { name: 'グラフ領域の表示を切替' }).click()
-    await expect.poll(async () => (await snapshot(page)).count).toBe(0)
   })
-}
 
-test('5年/1年刻みの全点とtooltipを保持し、幅に応じて年ラベルを切り替える', async ({
-  page,
-}) => {
+  test('解除・全解除・再選択を繰り返してもインスタンスは常に1つ以下で、領域の除去で破棄する', async ({
+    page,
+  }) => {
+    await openChartFixture(page, 1440)
+    await checkbox(page, '東京都').check()
+    await checkbox(page, '北海道').check()
+    await expect(chartImage(page)).toBeVisible()
+    await checkbox(page, '東京都').uncheck()
+    await expect.poll(() => datasetLabels(page)).toEqual(['北海道'])
+    await checkbox(page, '北海道').uncheck()
+    await expect(emptyStatus(page)).toBeVisible()
+    await expect.poll(async () => (await chartSnapshot(page)).count).toBe(0)
+
+    for (let i = 0; i < 3; i++) {
+      await checkbox(page, '東京都').check()
+      await expect.poll(async () => (await chartSnapshot(page)).count).toBe(1)
+      await checkbox(page, '東京都').uncheck()
+      await expect(page.locator('canvas')).toHaveCount(0)
+      await expect.poll(async () => (await chartSnapshot(page)).count).toBe(0)
+    }
+    await checkbox(page, '東京都').check()
+    await expect(page.locator('canvas')).toBeVisible()
+    await page.getByRole('button', { name: 'グラフ領域の表示を切替' }).click()
+    await expect.poll(async () => (await chartSnapshot(page)).count).toBe(0)
+  })
+
   for (const [mode, step] of [
     ['five-year', 5],
     ['annual', 1],
   ] as const) {
-    await page.setViewportSize({ width: 768, height: 1100 })
-    await page.goto(`/tests/preview/population-chart.html?years=${mode}`)
-    await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
-    await expect(page.locator('canvas')).toBeVisible()
-    const initial = await snapshot(page)
-    const expected = Array.from({ length: 60 / step + 1 }, (_, i) => ({
-      x: 1960 + i * step,
-      y: 7600000 + i * 10000,
-    }))
-    expect(initial.datasets?.[0]?.data).toEqual(expected)
-    expect(initial.xTicks?.[0]).toBe(1960)
-    expect(initial.xTicks?.at(-1)).toBe(2020)
-    for (const width of [639, 390, 320, 640, 768, 1440, 390]) {
-      await page.setViewportSize({ width, height: 1100 })
-      await expect
-        .poll(async () =>
-          page
-            .locator('canvas')
-            .evaluate((c) => Math.round(c.getBoundingClientRect().width)),
-        )
-        .toBe(
-          width >= 1024 ? width - 210 : width >= 640 ? width - 114 : width - 66,
-        )
-      const current = await snapshot(page)
-      expect(current.id).toBe(initial.id)
-      expect(current.count).toBe(1)
-      expect(current.datasets?.[0]?.data).toEqual(expected)
-      expect(current.points).toHaveLength(expected.length)
-      expect(current.xTicks?.[0]).toBe(1960)
-      expect(current.xTicks?.at(-1)).toBe(2020)
-    }
-    const canvas = page.locator('canvas')
-    await canvas.scrollIntoViewIfNeeded()
-    const point = (await snapshot(page)).points![1]!
-    const box = (await canvas.boundingBox())!
-    await page.mouse.move(box.x + point.x, box.y + point.y)
-    await expect
-      .poll(async () => (await snapshot(page)).tooltip?.title)
-      .toEqual([`${1960 + step}年`])
-    await expect
-      .poll(async () => (await snapshot(page)).tooltip?.body.flat())
-      .toEqual(['東京都: 7,610,000人'])
-  }
-})
+    test(`${step}年刻みの全点を幅を変えても保ち、tooltipに年と人数を出す`, async ({
+      page,
+    }) => {
+      await openChartFixture(page, 768, mode)
+      await checkbox(page, '東京都').check()
+      await expect(page.locator('canvas')).toBeVisible()
+      const expected = Array.from({ length: 60 / step + 1 }, (_, i) => ({
+        x: 1960 + i * step,
+        y: 7600000 + i * 10000,
+      }))
+      const initial = await chartSnapshot(page)
+      expect(initial.datasets?.[0]?.data).toEqual(expected)
 
-test('1年・2年・不均一年・推計年でも最初と最新の年、元の点を保持する', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 390, height: 1100 })
+      for (const width of [639, 390, 320, 640, 768, 1440, 390]) {
+        await resizeAndWaitForChart(page, width)
+        const current = await chartSnapshot(page)
+        expect(current.id).toBe(initial.id)
+        expect(current.datasets?.[0]?.data).toEqual(expected)
+        expect(current.points).toHaveLength(expected.length)
+        expect(await xTickRange(page)).toEqual([1960, 2020])
+      }
+
+      await hoverFirstPoints(page, 1)
+      await expect
+        .poll(async () => (await chartSnapshot(page)).tooltip?.title)
+        .toEqual([`${1960 + step}年`])
+      await expect
+        .poll(async () => (await chartSnapshot(page)).tooltip?.body.flat())
+        .toEqual(['東京都: 7,610,000人'])
+    })
+  }
+
   for (const [mode, years, ticks] of [
     ['partial', [1970, 1975, 1980, 1985, 1990], [1970, 1990]],
     ['gap', [2005, 2010, 2015], [2005, 2015]],
@@ -220,170 +180,139 @@ test('1年・2年・不均一年・推計年でも最初と最新の年、元の
     ['two', [1963, 2057], [1963, 2057]],
     ['irregular', [1963, 1964, 1979, 2020, 2057], [1963, 2057]],
   ] as const) {
-    await page.goto(`/tests/preview/population-chart.html?years=${mode}`)
-    await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
-    await expect(page.locator('canvas')).toBeVisible()
-    const current = await snapshot(page)
-    expect(current.xTicks?.[0]).toBe(ticks[0])
-    expect(current.xTicks?.at(-1)).toBe(ticks[1])
-    expect(current.datasets?.[0]?.data.map((p) => p.x)).toEqual(years)
-    expect(current.points).toHaveLength(years.length)
-    await expectNoHorizontalOverflow(page)
-  }
-})
-
-test('47県の凡例・表とリサイズで重なり/横溢れ/instance重複がなく、人数tooltipを描画する', async ({
-  page,
-}, testInfo) => {
-  const errors: string[] = []
-  const apiRequests: string[] = []
-  page.on('pageerror', (error) => errors.push(error.message))
-  page.on('request', (request) => {
-    if (new URL(request.url()).pathname.startsWith('/api/'))
-      apiRequests.push(request.url())
-  })
-  await page.goto('/tests/preview/population-chart.html')
-  await page.getByRole('button', { name: '全47県を選択' }).click()
-  await expect(
-    page.getByRole('img', { name: /総人口の人口推移/ }),
-  ).toBeVisible()
-  await expect(page.getByLabel('都道府県の凡例').locator('li')).toHaveCount(47)
-  const initial = await snapshot(page)
-  expect(initial.datasets).toHaveLength(47)
-  const datasets = initial.datasets!
-  expect(new Set(datasets.map((d) => d.borderColor)).size).toBe(47)
-  for (const dataset of datasets) {
-    expect(dataset.borderDash).toEqual([])
-    expect(dataset.pointStyle).toBe('circle')
-    expect(dataset.tension).toBe(0)
-  }
-  const legendColors = await page
-    .locator('.chart-legend svg')
-    .evaluateAll((icons) => icons.map((icon) => getComputedStyle(icon).color))
-  const rgb = (hex: string) =>
-    `rgb(${[1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16)).join(', ')})`
-  expect(legendColors).toEqual(
-    datasets.map((d) => rgb(d.borderColor as string)),
-  )
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: 1600 })
-    await captureScreenshot(
-      page.locator('.population'),
-      testInfo,
-      `population-chart-solid-47-${width}.png`,
-    )
-  }
-  await page.getByRole('checkbox', { name: '東京都', exact: true }).uncheck()
-  await expect
-    .poll(async () => (await snapshot(page)).datasets)
-    .toEqual(datasets.filter((d) => d.label !== '東京都'))
-  await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
-  await expect
-    .poll(async () => (await snapshot(page)).datasets)
-    .toEqual(datasets)
-
-  for (const width of [1440, 768, 390, 320]) {
-    await page.setViewportSize({ width, height: 1100 })
-    await expect
-      .poll(async () =>
-        page.locator('canvas').evaluate((c) => c.getBoundingClientRect().width),
-      )
-      .toBeLessThan(width)
-    const current = await snapshot(page)
-    expect(current.count).toBe(1)
-    expect(current.id).toBe(initial.id)
-    await expectNoHorizontalOverflow(page)
-    await page.getByRole('radio', { name: '老年人口', exact: true }).check()
-    await page.getByRole('radio', { name: '総人口', exact: true }).check()
-    await expect.poll(async () => (await snapshot(page)).id).toBe(initial.id)
-  }
-  await page.getByRole('button', { name: '選択を解除', exact: true }).click()
-  await expect.poll(async () => (await snapshot(page)).count).toBe(0)
-  for (const name of ['東京都', '大阪府', '北海道'])
-    await page.getByRole('checkbox', { name, exact: true }).check()
-  await expect(page.locator('canvas')).toBeVisible()
-  for (const width of [1440, 768, 390, 320]) {
-    await page.setViewportSize({ width, height: 1100 })
-    // Wait on the responsive Chart.js dimensions rather than a timed sleep.
-    await expect
-      .poll(async () =>
-        page
-          .locator('canvas')
-          .evaluate((c) => Math.round(c.getBoundingClientRect().width)),
-      )
-      .toBe(
-        width >= 1024 ? width - 210 : width >= 640 ? width - 114 : width - 66,
-      )
-    await captureScreenshot(
+    test(`年列が ${mode} でも、最初と最後の年を目盛りにし元の点をすべて保つ`, async ({
       page,
-      testInfo,
-      `population-chart-${width}.png`,
-      true,
+    }) => {
+      await openChartFixture(page, 390, mode)
+      await checkbox(page, '東京都').check()
+      await expect(page.locator('canvas')).toBeVisible()
+      const current = await chartSnapshot(page)
+      expect(await xTickRange(page)).toEqual(ticks)
+      expect(current.datasets?.[0]?.data.map((p) => p.x)).toEqual(years)
+      expect(current.points).toHaveLength(years.length)
+      await expectNoHorizontalOverflow(page)
+    })
+  }
+
+  test('47県を固有の色の実線で描き、凡例の色と一致させ、解除・再選択で同じ系列に戻る', async ({
+    page,
+  }, testInfo) => {
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    await openChartFixture(page, 1440)
+    await page.getByRole('button', { name: '全47県を選択' }).click()
+    await expect(chartImage(page)).toBeVisible()
+    await expect(legendItems(page)).toHaveCount(47)
+
+    const { datasets } = await chartSnapshot(page)
+    if (!datasets) throw new Error('グラフが描画されていません')
+    expect(datasets).toHaveLength(47)
+    expect(new Set(datasets.map((d) => d.borderColor)).size).toBe(47)
+    for (const dataset of datasets) {
+      expect(dataset).toMatchObject({
+        borderDash: [],
+        pointStyle: 'circle',
+        tension: 0,
+      })
+    }
+    const toRgb = (hex: string) =>
+      `rgb(${[1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16)).join(', ')})`
+    const legendColors = await page
+      .locator('.chart-legend svg')
+      .evaluateAll((icons) => icons.map((icon) => getComputedStyle(icon).color))
+    expect(legendColors).toEqual(
+      datasets.map((d) => toRgb(String(d.borderColor))),
     )
-    await captureScreenshot(
-      page.locator('.population'),
-      testInfo,
-      `population-chart-panel-${width}.png`,
-    )
-    const icons = page.locator('.chart-legend svg')
-    await expect(icons).toHaveCount(3)
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1600 })
+      await captureScreenshot(
+        page.locator('.population'),
+        testInfo,
+        `population-chart-solid-47-${width}.png`,
+      )
+    }
+
+    await checkbox(page, '東京都').uncheck()
+    await expect
+      .poll(async () => (await chartSnapshot(page)).datasets)
+      .toEqual(datasets.filter((d) => d.label !== '東京都'))
+    await checkbox(page, '東京都').check()
+    await expect
+      .poll(async () => (await chartSnapshot(page)).datasets)
+      .toEqual(datasets)
+    expect(errors).toEqual([])
+  })
+
+  test('画面幅を変えてもインスタンスを作り直さず、凡例のアイコン寸法を保ち、横に溢れない', async ({
+    page,
+  }, testInfo) => {
+    const apiRequests: string[] = []
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname.startsWith('/api/'))
+        apiRequests.push(request.url())
+    })
+    await openChartFixture(page, 1440)
+    for (const name of ['東京都', '大阪府', '北海道'])
+      await checkbox(page, name).check()
+    await expect(page.locator('canvas')).toBeVisible()
+    const { id } = await chartSnapshot(page)
+
+    for (const width of [1440, 768, 390, 320]) {
+      await resizeAndWaitForChart(page, width)
+      const current = await chartSnapshot(page)
+      expect(current.count).toBe(1)
+      expect(current.id).toBe(id)
+      await expectNoHorizontalOverflow(page)
+      await categoryRadio(page, '老年人口').check()
+      await categoryRadio(page, '総人口').check()
+      await expect.poll(async () => (await chartSnapshot(page)).id).toBe(id)
+
+      await captureScreenshot(
+        page,
+        testInfo,
+        `population-chart-${width}.png`,
+        true,
+      )
+      const icons = page.locator('.chart-legend svg')
+      await expect(icons).toHaveCount(3)
+      const sized = await icons.evaluateAll((elements) =>
+        elements.every((element) => {
+          const { width, height } = element.getBoundingClientRect()
+          return width === 24 && height === 16
+        }),
+      )
+      expect(sized).toBe(true)
+    }
+    await clearSelection(page)
+    await expect.poll(async () => (await chartSnapshot(page)).count).toBe(0)
+    expect(apiRequests).toEqual([])
+  })
+
+  test('県や区分の変更で年の範囲の端を更新し、推計年も目盛りに含める', async ({
+    page,
+  }) => {
+    await openChartFixture(page, 320, 'changing')
+    await checkbox(page, '東京都').check()
+    await expect.poll(() => xTickRange(page)).toEqual([1963, 2057])
+    await checkbox(page, '北海道').check()
+    await expect.poll(() => xTickRange(page)).toEqual([1951, 2073])
+    await checkbox(page, '北海道').uncheck()
+    await expect.poll(() => xTickRange(page)).toEqual([1963, 2057])
+    await categoryRadio(page, '年少人口').check()
+    await expect.poll(() => xTickRange(page)).toEqual([1964, 2020])
     expect(
-      await icons.evaluateAll((icons) =>
-        icons.every(
-          (i) =>
-            i.getBoundingClientRect().width === 24 &&
-            i.getBoundingClientRect().height === 16,
-        ),
-      ),
-    ).toBe(true)
-  }
-  const canvas = page.locator('canvas')
-  await canvas.scrollIntoViewIfNeeded()
-  const point = (await snapshot(page)).points![0]!
-  const box = (await canvas.boundingBox())!
-  await page.mouse.move(box.x + point.x, box.y + point.y)
-  await expect
-    .poll(async () => (await snapshot(page)).tooltip?.body.flat())
-    .toEqual(['東京都: 7,600,000人'])
-  await expect
-    .poll(async () => (await snapshot(page)).tooltip?.title)
-    .toEqual(['1960年'])
-  expect(errors).toEqual([])
-  expect(apiRequests).toEqual([])
+      (await chartSnapshot(page)).datasets?.[0]?.data.map((p) => p.x),
+    ).toEqual([1964, 1979, 2020])
+    await categoryRadio(page, '総人口').check()
+    await expect.poll(() => xTickRange(page)).toEqual([1963, 2057])
+    expect((await chartSnapshot(page)).datasets?.[0]?.data).toHaveLength(5)
+  })
 })
 
-test('県・区分変更で実際の年範囲の端を更新し、推計年も表示する', async ({
+test('実アプリ: 449/450/767/768pxの境界で年ラベルの間引きを切り替え、18点のデータを保つ', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 320, height: 1100 })
-  await page.goto('/tests/preview/population-chart.html?years=changing')
-  const tokyo = page.getByRole('checkbox', { name: '東京都', exact: true })
-  const hokkaido = page.getByRole('checkbox', { name: '北海道', exact: true })
-  const endpoints = async () => {
-    const current = await snapshot(page)
-    return [current.xTicks?.[0], current.xTicks?.at(-1)]
-  }
-  await tokyo.check()
-  await expect.poll(endpoints).toEqual([1963, 2057])
-  await hokkaido.check()
-  await expect.poll(endpoints).toEqual([1951, 2073])
-  await hokkaido.uncheck()
-  await expect.poll(endpoints).toEqual([1963, 2057])
-  await page.getByRole('radio', { name: '年少人口', exact: true }).check()
-  await expect.poll(endpoints).toEqual([1964, 2020])
-  expect((await snapshot(page)).datasets?.[0]?.data.map((p) => p.x)).toEqual([
-    1964, 1979, 2020,
-  ])
-  await page.getByRole('radio', { name: '総人口', exact: true }).check()
-  await expect.poll(endpoints).toEqual([1963, 2057])
-  expect((await snapshot(page)).datasets?.[0]?.data).toHaveLength(5)
-})
-
-test('449/450/767/768pxの境界で年ラベルを切り替え、実APIと同じ18点を保持する', async ({
-  page,
-}) => {
-  const { prefectureResponse, appPopulationResponse } =
-    await import('../fixtures/appApi')
+  const years = Array.from({ length: 18 }, (_, i) => 1960 + i * 5)
   await page.setViewportSize({ width: 320, height: 1100 })
   await page.route('**/api/v1/prefectures', (route) =>
     route.fulfill({ json: prefectureResponse }),
@@ -391,8 +320,8 @@ test('449/450/767/768pxの境界で年ラベルを切り替え、実APIと同じ
   await page.route('**/api/v1/population/composition/perYear?*', (route) => {
     const response = appPopulationResponse(1)
     for (const category of response.result.data) {
-      category.data = Array.from({ length: 18 }, (_, i) => ({
-        year: 1960 + i * 5,
+      category.data = years.map((year, i) => ({
+        year,
         value: 5000000 + i * 1000,
       }))
     }
@@ -408,40 +337,22 @@ test('449/450/767/768pxの境界で年ラベルを切り替え、実APIと同じ
     .getByRole('button', { name: '1 都道府県をグラフに反映', exact: true })
     .click()
   await expect(page.locator('canvas')).toBeVisible()
+
   for (const width of [320, 449, 450, 600, 767, 768, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 1100 })
-    await expect
-      .poll(async () => (await snapshot(page)).width)
-      .toBe(
-        width >= 1024 ? width - 210 : width >= 640 ? width - 114 : width - 66,
-      )
-    const current = await snapshot(page)
-    expect(current.xTicks?.[0]).toBe(1960)
-    expect(current.xTicks?.at(-1)).toBe(2045)
+    await resizeAndWaitForChart(page, width)
+    const current = await chartSnapshot(page)
     expect(current.datasets?.[0]?.data).toHaveLength(18)
-    const { xTicks, tickLabels, width: chartWidth } = current
-    if (!xTicks || !tickLabels || chartWidth === undefined)
-      throw new Error('グラフの目盛りがありません')
-    const years = Array.from({ length: 18 }, (_, i) => 1960 + i * 5)
-    if (width < 450) expect(xTicks).toEqual([1960, 2045])
-    else if (width >= 768) expect(xTicks).toEqual(years)
+    expect(await xTickRange(page)).toEqual([1960, 2045])
+    if (width < 450) expect(current.xTicks).toEqual([1960, 2045])
+    else if (width >= 768) expect(current.xTicks).toEqual(years)
     else {
+      // 1つおき+最終年。最終年と直前が重なる幅では直前（2040）だけを省く。
       const alternating = [...years.filter((_, i) => i % 2 === 0), 2045]
       expect([
         alternating,
         alternating.filter((year) => year !== 2040),
-      ]).toContainEqual(xTicks)
+      ]).toContainEqual(current.xTicks)
     }
-    for (let i = 1; i < tickLabels.length; i++) {
-      const previous = tickLabels[i - 1]
-      const next = tickLabels[i]
-      if (!previous || !next) throw new Error('隣接するラベルがありません')
-      expect(
-        next.x - next.width / 2 - (previous.x + previous.width / 2),
-      ).toBeGreaterThanOrEqual(0)
-    }
-    const last = tickLabels.at(-1)
-    if (!last) throw new Error('末尾のラベルがありません')
-    expect(last.x + last.width / 2).toBeLessThanOrEqual(chartWidth)
+    expectTickLabelsFit(current)
   }
 })

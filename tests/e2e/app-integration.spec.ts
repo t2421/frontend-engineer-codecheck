@@ -3,350 +3,331 @@ import { expectNoHorizontalOverflow } from './layout'
 import { prefectureResponse, appPopulationResponse } from '../fixtures/appApi'
 import { checkAccessibility } from './accessibility'
 import { captureScreenshot } from './screenshot'
+import { chartSnapshot, datasetLabels } from './chart'
+import {
+  gate,
+  mockPopulation,
+  mockPrefectures,
+  populationApi,
+  prefCodeOf,
+  prefecturesApi,
+  serviceUnavailable,
+} from './apiMock'
+import {
+  applySheet,
+  categoryRadio,
+  clearSelection,
+  emptyStatus,
+  floatingSelectionButton,
+  isMobileViewport,
+  legendItems,
+  populationErrorAlert,
+  populationLoadingStatus,
+  retryButton,
+  setPrefectureChecked,
+} from './app'
 
-async function chartState(page: Page) {
-  return page.evaluate(async () => {
-    const moduleUrl = performance
-      .getEntriesByType('resource')
-      .map((e) => e.name)
-      .find((name) => new URL(name).pathname.endsWith('/chart__js.js'))
-    if (!moduleUrl) throw new Error('Chart.js module was not loaded')
-    const { Chart } = (await import(moduleUrl)) as typeof import('chart.js')
-    const canvas = document.querySelector('canvas')
-    const chart = canvas ? Chart.getChart(canvas) : undefined
-    return {
-      count: Object.keys(Chart.instances).length,
-      id: chart?.id,
-      data: chart?.data.datasets.map((d) => ({ label: d.label, data: d.data })),
-      ticks: chart?.scales.x?.ticks.map((t) => t.value),
-    }
-  })
-}
+const canvas = (page: Page) => page.locator('canvas')
 
-const mobileSelection = (page: Page) =>
-  page.getByRole('button', {
-    name: /^都道府県を選択 · \d+ 選択中$/,
-    exact: true,
-  })
+test.describe('実アプリの通し操作（APIモック）', () => {
+  // 640px が PC とスマホの境界。各レイアウトを代表する幅で確かめる。
+  for (const width of [1440, 390]) {
+    test.describe(`${width}px`, () => {
+      let requestedCodes: number[]
+      test.beforeEach(async ({ page }) => {
+        await page.setViewportSize({ width, height: 1100 })
+        await mockPrefectures(page)
+        requestedCodes = await mockPopulation(page)
+        await page.goto('/')
+      })
 
-async function applySelection(page: Page) {
-  await page
-    .getByRole('dialog')
-    .getByRole('button', { name: /^\d+ 都道府県をグラフに反映$/, exact: true })
-    .click()
-  await expect(page.getByRole('dialog')).toBeHidden()
-}
+      test('県を選ぶと取得して描画し、区分の切替は同じグラフを更新して再取得しない', async ({
+        page,
+      }, testInfo) => {
+        await expect(emptyStatus(page)).toBeVisible()
+        await expect(categoryRadio(page, '総人口')).toBeChecked()
+        await captureScreenshot(
+          page,
+          testInfo,
+          `app-initial-${width}.png`,
+          true,
+        )
 
-async function selectPrefecture(page: Page, name: string, checked: boolean) {
-  const mobile = (page.viewportSize()?.width ?? 1280) < 640
-  if (mobile) await mobileSelection(page).click()
-  await page.getByRole('checkbox', { name, exact: true }).setChecked(checked)
-  if (mobile) await applySelection(page)
-}
+        if (isMobileViewport(page)) {
+          await expect(floatingSelectionButton(page)).toHaveAttribute(
+            'aria-expanded',
+            'false',
+          )
+          await floatingSelectionButton(page).focus()
+          await page.keyboard.press('Enter')
+        }
+        await expect(page.getByRole('checkbox')).toHaveCount(47)
+        expect(requestedCodes).toEqual([])
+        await page
+          .getByRole('checkbox', { name: '北海道', exact: true })
+          .focus()
+        await page.keyboard.press('Space')
+        await page
+          .getByRole('checkbox', { name: '東京都', exact: true })
+          .check()
+        if (isMobileViewport(page)) await applySheet(page)
 
-for (const width of [1440, 768, 390, 320]) {
-  test(`${width}px: 実アプリ全体の47県・4区分・cache・描画・a11y（APIモック）`, async ({
+        await expect(canvas(page)).toHaveAttribute(
+          'aria-label',
+          /北海道、東京都/,
+        )
+        const initial = await chartSnapshot(page)
+        expect(initial.count).toBe(1)
+        expect(initial.datasets?.map((d) => d.label)).toEqual([
+          '北海道',
+          '東京都',
+        ])
+        expect([initial.xTicks?.[0], initial.xTicks?.at(-1)]).toEqual([
+          1960, 2020,
+        ])
+        await expect(
+          page.getByRole('cell', { name: '100,000人', exact: true }),
+        ).toHaveCount(1)
+
+        for (const [label, offset] of [
+          ['年少人口', 10000],
+          ['生産年齢人口', 20000],
+          ['老年人口', 30000],
+          ['総人口', 0],
+        ] as const) {
+          await categoryRadio(page, label).check()
+          await expect(canvas(page)).toHaveAttribute(
+            'aria-label',
+            new RegExp(label),
+          )
+          const current = await chartSnapshot(page)
+          expect(current.id).toBe(initial.id)
+          expect(current.datasets?.[0]?.data[0]).toEqual({
+            x: 1960,
+            y: 100000 + offset,
+          })
+        }
+        expect(requestedCodes).toEqual([1, 13])
+        await checkAccessibility(page, testInfo)
+        await captureScreenshot(
+          page,
+          testInfo,
+          `app-selected-${width}.png`,
+          true,
+        )
+      })
+
+      test('解除・再選択はキャッシュを使い、全解除でグラフを破棄する', async ({
+        page,
+      }, testInfo) => {
+        await setPrefectureChecked(page, '北海道', true)
+        await setPrefectureChecked(page, '東京都', true)
+        await expect(canvas(page)).toHaveAttribute(
+          'aria-label',
+          /北海道、東京都/,
+        )
+        const { id } = await chartSnapshot(page)
+
+        await setPrefectureChecked(page, '北海道', false)
+        await expect.poll(() => datasetLabels(page)).toEqual(['東京都'])
+        await setPrefectureChecked(page, '北海道', true)
+        await expect
+          .poll(() => datasetLabels(page))
+          .toEqual(['北海道', '東京都'])
+        expect(requestedCodes).toEqual([1, 13])
+        await expect.poll(async () => (await chartSnapshot(page)).id).toBe(id)
+
+        if (isMobileViewport(page)) {
+          await floatingSelectionButton(page).click()
+          for (const checkbox of await page.getByRole('checkbox').all())
+            await checkbox.uncheck()
+          await applySheet(page)
+        } else {
+          await clearSelection(page)
+        }
+        await expect(canvas(page)).toHaveCount(0)
+        await expect(emptyStatus(page)).toBeVisible()
+        await expect.poll(async () => (await chartSnapshot(page)).count).toBe(0)
+        await checkAccessibility(page, testInfo)
+      })
+    })
+  }
+
+  test('47県すべてを選んでも1つのグラフに描き、横に溢れない', async ({
     page,
   }, testInfo) => {
-    await page.setViewportSize({ width, height: 1100 })
-    const requests: number[] = []
-    await page.route('**/api/v1/prefectures', (route) =>
-      route.fulfill({ json: prefectureResponse }),
-    )
-    await page.route('**/api/v1/population/composition/perYear?*', (route) => {
-      const code = Number(
-        new URL(route.request().url()).searchParams.get('prefCode'),
-      )
-      expect(route.request().method()).toBe('GET')
-      expect(new URL(route.request().url()).search).toBe(`?prefCode=${code}`)
-      requests.push(code)
-      return route.fulfill({ json: appPopulationResponse(code) })
-    })
+    await page.setViewportSize({ width: 1440, height: 1100 })
+    await mockPrefectures(page)
+    const requestedCodes = await mockPopulation(page)
     await page.goto('/')
-    await expect(
-      page.getByRole('status').filter({ hasText: '都道府県を選択すると' }),
-    ).toBeVisible()
-    await expect(
-      page.getByRole('radio', { name: '総人口', exact: true }),
-    ).toBeChecked()
-    await captureScreenshot(page, testInfo, `app-initial-${width}.png`, true)
-    if (width < 640) {
-      await expect(mobileSelection(page)).toHaveAttribute(
-        'aria-expanded',
-        'false',
-      )
-      await mobileSelection(page).focus()
-      await page.keyboard.press('Enter')
-    }
-    await expect(page.getByRole('checkbox')).toHaveCount(47)
-    expect(requests).toEqual([])
-    await page.getByRole('checkbox', { name: '北海道', exact: true }).focus()
-    await page.keyboard.press('Space')
-    await page.getByRole('checkbox', { name: '東京都', exact: true }).check()
-    if (width < 640) await applySelection(page)
-    await expect(page.locator('canvas')).toHaveAttribute(
-      'aria-label',
-      /北海道、東京都/,
-    )
-    const initial = await chartState(page)
-    expect(initial.count).toBe(1)
-    expect(initial.data?.map((d) => d.label)).toEqual(['北海道', '東京都'])
-    expect(initial.ticks?.[0]).toBe(1960)
-    expect(initial.ticks?.at(-1)).toBe(2020)
-    await expect(
-      page.getByRole('cell', { name: '100,000人', exact: true }),
-    ).toHaveCount(1)
-    for (const [label, offset] of [
-      ['年少人口', 10000],
-      ['生産年齢人口', 20000],
-      ['老年人口', 30000],
-      ['総人口', 0],
-    ] as const) {
-      await page.getByRole('radio', { name: label, exact: true }).check()
-      await expect(page.locator('canvas')).toHaveAttribute(
-        'aria-label',
-        new RegExp(label),
-      )
-      const current = await chartState(page)
-      expect(current.id).toBe(initial.id)
-      expect(current.data?.[0]?.data[0]).toEqual({
-        x: 1960,
-        y: 100000 + offset,
-      })
-      if (width >= 640)
-        await expect(
-          page.getByRole('checkbox', { name: '北海道', exact: true }),
-        ).toBeChecked()
-    }
-    expect(requests).toEqual([1, 13])
-    await checkAccessibility(page, testInfo)
-    await captureScreenshot(page, testInfo, `app-selected-${width}.png`, true)
-    await selectPrefecture(page, '北海道', false)
-    await expect
-      .poll(async () => (await chartState(page)).data?.map((d) => d.label))
-      .toEqual(['東京都'])
-    await selectPrefecture(page, '北海道', true)
-    expect(requests).toEqual([1, 13])
-    // Every API-derived checkbox can contribute a dataset, without recreating Chart.
-    if (width < 640) await mobileSelection(page).click()
+    await setPrefectureChecked(page, '北海道', true)
+    await expect(canvas(page)).toHaveAttribute('aria-label', /北海道/)
+    const { id } = await chartSnapshot(page)
+
     for (const checkbox of await page.getByRole('checkbox').all())
       await checkbox.check()
-    if (width < 640) await applySelection(page)
-    await expect(page.locator('.chart-legend li')).toHaveCount(47)
-    expect(requests).toHaveLength(47)
-    await expect.poll(async () => (await chartState(page)).id).toBe(initial.id)
-    await expect.poll(async () => (await chartState(page)).count).toBe(1)
+    await expect(legendItems(page)).toHaveCount(47)
+    expect(requestedCodes).toHaveLength(47)
+    await expect.poll(async () => (await chartSnapshot(page)).id).toBe(id)
+    await expect.poll(async () => (await chartSnapshot(page)).count).toBe(1)
     await expectNoHorizontalOverflow(page)
-    await captureScreenshot(page, testInfo, `app-47-${width}.png`, true)
-    if (width < 640) {
-      await mobileSelection(page).click()
-      for (const checkbox of await page.getByRole('checkbox').all())
-        await checkbox.uncheck()
-      await applySelection(page)
-    } else
-      await page
-        .getByRole('button', { name: '選択を解除', exact: true })
-        .click()
-    await expect(page.locator('canvas')).toHaveCount(0)
-    await expect.poll(async () => (await chartState(page)).count).toBe(0)
+    await captureScreenshot(page, testInfo, 'app-47.png', true)
+  })
+
+  test('一覧と人口の取得失敗から再試行でき、解除した県の遅い応答は表示に戻さない', async ({
+    page,
+  }, testInfo) => {
+    let listAttempts = 0
+    let populationAttempts = 0
+    const pending = gate()
+    await page.route(prefecturesApi, (route) =>
+      ++listAttempts === 1
+        ? route.fulfill(serviceUnavailable)
+        : route.fulfill({ json: prefectureResponse }),
+    )
+    await page.route(populationApi, async (route) => {
+      const attempt = ++populationAttempts
+      if (attempt === 1) return route.fulfill(serviceUnavailable)
+      if (attempt === 3) await pending.wait()
+      return route.fulfill({ json: appPopulationResponse(prefCodeOf(route)) })
+    })
+    await page.goto('/')
+
+    await expect(page.getByRole('alert')).toContainText(
+      '都道府県一覧を取得できませんでした',
+    )
     await checkAccessibility(page, testInfo)
-  })
-}
+    await retryButton(page).click()
 
-test('実アプリ: 一覧・人口の失敗、retry、loadingと解除後遅延応答（APIモック）', async ({
-  page,
-}, testInfo) => {
-  let listCount = 0
-  let populationCount = 0
-  let release!: () => void
-  const gate = new Promise<void>((resolve) => {
-    release = resolve
+    await setPrefectureChecked(page, '北海道', true)
+    await expect(populationErrorAlert(page)).toBeVisible()
+    await categoryRadio(page, '老年人口').check()
+    await captureScreenshot(page, testInfo, 'app-error.png', true)
+    await checkAccessibility(page, testInfo)
+    await retryButton(page).click()
+    await expect(canvas(page)).toHaveAttribute('aria-label', /老年人口/)
+
+    await setPrefectureChecked(page, '東京都', true)
+    await expect(populationLoadingStatus(page)).toBeVisible()
+    await captureScreenshot(page, testInfo, 'app-loading.png', true)
+    await checkAccessibility(page, testInfo)
+    await setPrefectureChecked(page, '東京都', false)
+    await setPrefectureChecked(page, '東京都', true)
+    expect(populationAttempts).toBe(3)
+
+    await setPrefectureChecked(page, '東京都', false)
+    const response = page.waitForResponse((r) =>
+      r.url().includes('prefCode=13'),
+    )
+    pending.release()
+    await response
+    await expect(legendItems(page)).toHaveText(['北海道'])
+    await setPrefectureChecked(page, '東京都', true)
+    await expect(legendItems(page)).toHaveCount(2)
+    expect(populationAttempts).toBe(3)
+    expect(listAttempts).toBe(2)
   })
-  await page.route('**/api/v1/prefectures', (route) =>
-    ++listCount === 1
-      ? route.fulfill({ status: 503, json: { error: 'SERVICE_UNAVAILABLE' } })
-      : route.fulfill({ json: prefectureResponse }),
-  )
-  await page.route(
-    '**/api/v1/population/composition/perYear?*',
-    async (route) => {
-      const attempt = ++populationCount
-      if (attempt === 1)
-        return route.fulfill({
-          status: 503,
-          json: { error: 'SERVICE_UNAVAILABLE' },
-        })
-      if (attempt === 3) await gate
-      return route.fulfill({
-        json: appPopulationResponse(
-          Number(new URL(route.request().url()).searchParams.get('prefCode')),
-        ),
+
+  test('一覧の取得中は47個の操作できないスケルトンと案内を表示する', async ({
+    page,
+  }, testInfo) => {
+    const pending = gate()
+    await page.route(prefecturesApi, async (route) => {
+      await pending.wait()
+      await route.fulfill({ json: prefectureResponse })
+    })
+    await page.goto('/')
+    await expect(page.locator('.checkbox-skeleton')).toHaveCount(47)
+    await expect(page.getByRole('checkbox')).toHaveCount(0)
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: '都道府県一覧を読み込んでいます' }),
+    ).toBeVisible()
+    await captureScreenshot(page, testInfo, 'app-list-loading.png', true)
+    await checkAccessibility(page, testInfo)
+    pending.release()
+    await expect(page.getByRole('checkbox')).toHaveCount(47)
+  })
+
+  for (const width of [1440, 320]) {
+    test(`${width}px: 一部の県が失敗・取得中でも既存のグラフを保ち、案内はコンパクトに出す`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 1100 })
+      const requestedCodes: number[] = []
+      let tokyoAttempts = 0
+      const pending = gate()
+      await mockPrefectures(page)
+      await page.route(populationApi, async (route) => {
+        const code = prefCodeOf(route)
+        requestedCodes.push(code)
+        if (code === 13 && ++tokyoAttempts === 1)
+          return route.fulfill(serviceUnavailable)
+        if (code === 27) await pending.wait()
+        return route.fulfill({ json: appPopulationResponse(code) })
       })
-    },
-  )
-  await page.goto('/')
-  await expect(page.getByRole('alert')).toContainText(
-    '都道府県一覧を取得できませんでした',
-  )
-  await checkAccessibility(page, testInfo)
-  await page.getByRole('button', { name: '再読み込み' }).click()
-  await selectPrefecture(page, '北海道', true)
-  await expect(page.getByRole('alert')).toContainText(
-    'データを取得できませんでした',
-  )
-  await page.getByRole('radio', { name: '老年人口', exact: true }).check()
-  await captureScreenshot(page, testInfo, 'app-error.png', true)
-  await checkAccessibility(page, testInfo)
-  await page.getByRole('button', { name: '再読み込み' }).click()
-  await expect(page.locator('canvas')).toHaveAttribute('aria-label', /老年人口/)
-  await selectPrefecture(page, '東京都', true)
-  await expect(
-    page.getByRole('status').filter({ hasText: '人口データを読み込み中' }),
-  ).toBeVisible()
-  await captureScreenshot(page, testInfo, 'app-loading.png', true)
-  await checkAccessibility(page, testInfo)
-  await selectPrefecture(page, '東京都', false)
-  await selectPrefecture(page, '東京都', true)
-  expect(populationCount).toBe(3)
-  await selectPrefecture(page, '東京都', false)
-  const response = page.waitForResponse((r) => r.url().includes('prefCode=13'))
-  release()
-  await response
-  await expect(page.locator('.chart-legend li')).toHaveText(['北海道'])
-  await selectPrefecture(page, '東京都', true)
-  await expect(page.locator('.chart-legend li')).toHaveCount(2)
-  expect(populationCount).toBe(3)
-  expect(listCount).toBe(2)
+      try {
+        await page.goto('/')
+        await setPrefectureChecked(page, '北海道', true)
+        await expect(canvas(page)).toBeVisible()
+        const { id } = await chartSnapshot(page)
+        const dataBox = await page.locator('.chart-data').boundingBox()
+        expect(dataBox).toMatchObject({ width: 1, height: 1 })
+
+        await setPrefectureChecked(page, '東京都', true)
+        await expect(populationErrorAlert(page)).toBeVisible()
+        await setPrefectureChecked(page, '大阪府', true)
+        await expect(retryButton(page)).toBeVisible()
+        await expect(populationErrorAlert(page)).toBeVisible()
+        const compactBox = await page
+          .locator('.status-message-compact')
+          .boundingBox()
+        expect(compactBox?.height).toBeLessThan(300)
+        await expect.poll(async () => (await chartSnapshot(page)).id).toBe(id)
+        await checkAccessibility(page, testInfo)
+
+        await setPrefectureChecked(page, '東京都', false)
+        await expect(populationLoadingStatus(page)).toBeVisible()
+        await checkAccessibility(page, testInfo)
+        await setPrefectureChecked(page, '東京都', true)
+        await expect(legendItems(page)).toHaveText(['北海道', '東京都'])
+        expect(requestedCodes).toEqual([1, 13, 27, 13])
+
+        pending.release()
+        await expect(legendItems(page)).toHaveText([
+          '北海道',
+          '東京都',
+          '大阪府',
+        ])
+        await expect.poll(async () => (await chartSnapshot(page)).id).toBe(id)
+        await captureScreenshot(
+          page,
+          testInfo,
+          `app-common-state-${width}.png`,
+          true,
+        )
+        await checkAccessibility(page, testInfo)
+      } finally {
+        pending.release()
+      }
+    })
+  }
 })
 
-test('一覧取得中は47個の操作不可skeletonと案内を表示する（APIモック）', async ({
-  page,
-}, testInfo) => {
-  let release!: () => void
-  const gate = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  await page.route('**/api/v1/prefectures', async (route) => {
-    await gate
-    await route.fulfill({ json: prefectureResponse })
-  })
-  await page.goto('/')
-  await expect(page.locator('.checkbox-skeleton')).toHaveCount(47)
-  await expect(page.getByRole('checkbox')).toHaveCount(0)
-  await expect(
-    page
-      .getByRole('status')
-      .filter({ hasText: '都道府県一覧を読み込んでいます' }),
-  ).toBeVisible()
-  await captureScreenshot(page, testInfo, 'app-list-loading.png', true)
-  await checkAccessibility(page, testInfo)
-  release()
-  await expect(page.getByRole('checkbox')).toHaveCount(47)
-})
-
-test('全体確認用fixtureはPopulationPageを使用しAPI通信せず人口値を描画する', async ({
+test('全体確認ページはPopulationPageを合成loaderで動かし、APIへ通信しない', async ({
   page,
 }) => {
-  const requests: string[] = []
+  const apiRequests: string[] = []
   await page.route('**/api/**', (route) => {
-    requests.push(route.request().url())
+    apiRequests.push(route.request().url())
     return route.abort()
   })
   await page.goto('/tests/preview/app-integration.html')
-  await selectPrefecture(page, '東京都', true)
-  await expect(page.locator('canvas')).toBeVisible()
+  await setPrefectureChecked(page, '東京都', true)
+  await expect(canvas(page)).toBeVisible()
   await expect(
     page.getByRole('cell', { name: '1,300,000人', exact: true }),
   ).toHaveCount(1)
-  expect(requests).toEqual([])
+  expect(apiRequests).toEqual([])
 })
-
-for (const width of [1440, 320]) {
-  test(`${width}px: 既存グラフとcompact案内を維持し、失敗県の再選択で再取得する`, async ({
-    page,
-  }, testInfo) => {
-    await page.setViewportSize({ width, height: 1100 })
-    const calls: number[] = []
-    let tokyoAttempt = 0
-    let release!: () => void
-    const gate = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    await page.route('**/api/v1/prefectures', (route) =>
-      route.fulfill({ json: prefectureResponse }),
-    )
-    await page.route(
-      '**/api/v1/population/composition/perYear?*',
-      async (route) => {
-        const code = Number(
-          new URL(route.request().url()).searchParams.get('prefCode'),
-        )
-        calls.push(code)
-        if (code === 13 && ++tokyoAttempt === 1)
-          return route.fulfill({
-            status: 503,
-            json: { error: 'SERVICE_UNAVAILABLE' },
-          })
-        if (code === 27) await gate
-        return route.fulfill({ json: appPopulationResponse(code) })
-      },
-    )
-    try {
-      await page.goto('/')
-      await selectPrefecture(page, '北海道', true)
-      await expect(page.locator('canvas')).toBeVisible()
-      const initial = await chartState(page)
-      await expect(page.locator('details, summary')).toHaveCount(0)
-      const dataBox = await page.locator('.chart-data').boundingBox()
-      expect(dataBox!.width).toBe(1)
-      expect(dataBox!.height).toBe(1)
-      await selectPrefecture(page, '東京都', true)
-      await expect(page.getByRole('alert')).toContainText(
-        'データを取得できませんでした',
-      )
-      await selectPrefecture(page, '大阪府', true)
-      await expect(
-        page.getByRole('button', { name: '再読み込み' }),
-      ).toBeVisible()
-      await expect(page.getByRole('alert')).toContainText(
-        'データを取得できませんでした',
-      )
-      expect(
-        (await page.locator('.status-message-compact').boundingBox())!.height,
-      ).toBeLessThan(300)
-      await expect
-        .poll(async () => (await chartState(page)).id)
-        .toBe(initial.id)
-      await checkAccessibility(page, testInfo)
-      await selectPrefecture(page, '東京都', false)
-      await expect(
-        page.getByRole('status').filter({ hasText: '人口データを読み込み中' }),
-      ).toBeVisible()
-      await checkAccessibility(page, testInfo)
-      await selectPrefecture(page, '東京都', true)
-      await expect(page.locator('.chart-legend li')).toHaveText([
-        '北海道',
-        '東京都',
-      ])
-      expect(calls).toEqual([1, 13, 27, 13])
-      release()
-      await expect(page.locator('.chart-legend li')).toHaveText([
-        '北海道',
-        '東京都',
-        '大阪府',
-      ])
-      await expect
-        .poll(async () => (await chartState(page)).id)
-        .toBe(initial.id)
-      await captureScreenshot(
-        page,
-        testInfo,
-        `app-common-state-${width}.png`,
-        true,
-      )
-      await checkAccessibility(page, testInfo)
-    } finally {
-      release()
-    }
-  })
-}

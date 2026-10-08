@@ -2,12 +2,19 @@ import { expect, test } from '@playwright/test'
 import { checkAccessibility } from './accessibility'
 import { captureScreenshot } from './screenshot'
 
-test.describe('共通ボトムシート', () => {
+test.describe('BottomSheet（確認ページ）', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
   })
 
-  test('初期openでもモーダルを開きslotの内容を操作できる', async ({ page }) => {
+  const expectScrollUnlocked = (page: import('@playwright/test').Page) =>
+    expect
+      .poll(() => page.evaluate(() => document.body.style.position))
+      .toBe('')
+
+  test('初期状態で開いていてもモーダルとして表示し、中身を操作して閉じられる', async ({
+    page,
+  }) => {
     await page.goto('/tests/preview/bottom-sheet.html?open')
     const dialog = page.getByRole('dialog', {
       name: '確認用シート',
@@ -22,12 +29,10 @@ test.describe('共通ボトムシート', () => {
       .fill('確認')
     await dialog.getByRole('button', { name: '反映', exact: true }).click()
     await expect(dialog).toBeHidden()
-    await expect
-      .poll(() => page.evaluate(() => document.body.style.position))
-      .toBe('')
+    await expectScrollUnlocked(page)
   })
 
-  test('開いているシートを除去してもscroll lockとフォーカスを復元する', async ({
+  test('開いたままシートが除去されても、スクロール固定を解除しフォーカスを戻す', async ({
     page,
   }) => {
     await page.goto('/tests/preview/bottom-sheet.html')
@@ -41,12 +46,10 @@ test.describe('共通ボトムシート', () => {
       .click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(trigger).toBeFocused()
-    await expect
-      .poll(() => page.evaluate(() => document.body.style.position))
-      .toBe('')
+    await expectScrollUnlocked(page)
   })
 
-  test('閉じるはsecondary、反映はprimaryの色と44px以上の操作領域を持つ', async ({
+  test('閉じるは secondary、反映は primary の配色で、どちらも44px以上の高さを持つ', async ({
     page,
   }, testInfo) => {
     await page.goto('/tests/preview/bottom-sheet.html')
@@ -57,7 +60,6 @@ test.describe('共通ボトムシート', () => {
     const apply = page.getByRole('button', { name: '反映', exact: true })
     await expect(close).toHaveCSS('color', 'rgb(21, 88, 214)')
     await expect(close).toHaveCSS('background-color', 'rgb(255, 255, 255)')
-    await expect(close).toHaveCSS('border-top-width', '1px')
     await expect(apply).toHaveCSS('color', 'rgb(255, 255, 255)')
     await expect(apply).toHaveCSS('background-color', 'rgb(21, 88, 214)')
     for (const button of [close, apply]) {

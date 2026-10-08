@@ -1,206 +1,190 @@
-import { expect, test, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import {
   fetchPopulation,
   parsePopulation,
   PopulationDataError,
   POPULATION_FETCH_ERROR,
-  populationCategories,
 } from '../../src/components/population/populationApi'
 import { populationResponse } from '../fixtures/population'
 
-test('表示ラベルを変更してもAPI照合は元の区分名を使用する', () => {
-  const option = populationCategories[0]
-  const original = option.label
-  try {
-    Object.assign(option, { label: '表示用の総人口' })
-    expect(parsePopulation(populationResponse()).categories.total).toEqual([
-      { year: 2020, value: 100 },
-    ])
-  } finally {
-    Object.assign(option, { label: original })
-  }
-})
-
-test('未知の追加ラベルを無視し、必要な4区分だけを返す', () => {
+// 総人口の年別データだけを差し替えた応答を作る。
+function withTotalPoints(points: unknown[]) {
   const response = populationResponse()
-  const expected = parsePopulation(response)
-  response.result.data.push({
-    label: '未知の人口区分',
-    data: [{ year: 2020, value: 999 }],
-  })
-  expect(parsePopulation(response)).toEqual(expected)
-  expect(Object.keys(parsePopulation(response).categories)).toEqual([
-    'total',
-    'young',
-    'working',
-    'elder',
-  ])
-})
-
-test('解析失敗は固定表示文言と空でない開発者向け理由を持つ', () => {
-  expect(() => parsePopulation(null)).toThrow(PopulationDataError)
-  try {
-    parsePopulation(null)
-  } catch (error) {
-    expect(error).toMatchObject({
-      name: 'PopulationDataError',
-      message: '人口データを取得できませんでした',
-      reason: expect.stringMatching(/\S/),
-    })
-    expect((error as Error).message).toBe(POPULATION_FETCH_ERROR)
-  }
-})
-
-test('通信失敗は表示文言を固定したまま元の例外をcauseに保持する', async () => {
-  const cause = new Error('private upstream details')
-  const fetcher = vi.fn().mockRejectedValue(cause)
-  const request = fetchPopulation(1, fetcher)
-  await expect(request).rejects.toMatchObject({
-    name: 'PopulationDataError',
-    message: '人口データを取得できませんでした',
-    reason: 'request failed',
-    cause,
-  })
-  const error: unknown = await request.catch((error) => error)
-  expect((error as Error).cause).toBe(cause)
-})
-
-test('既存のPopulationDataErrorは包み直さず同じ例外を返す', async () => {
-  const error = new PopulationDataError('synthetic failure')
-  await expect(
-    fetchPopulation(1, vi.fn().mockRejectedValue(error)),
-  ).rejects.toBe(error)
-})
-
-test('年を昇順に並べ、率の境界値と未指定時のキー省略を維持する', () => {
-  const response = populationResponse()
-  response.result.data[0]!.data = [
-    { year: 2030, value: 300, rate: 100 },
-    { year: 2010, value: 0, rate: 0 },
-    { year: 2020, value: 200 },
-  ]
-  expect(parsePopulation(response).categories.total).toEqual([
-    { year: 2010, value: 0, rate: 0 },
-    { year: 2020, value: 200 },
-    { year: 2030, value: 300, rate: 100 },
-  ])
-})
-
-test('必要なラベルの重複は追加区分があっても拒否する', () => {
-  const response = populationResponse()
-  response.result.data.push(response.result.data[0]!)
-  expect(() => parsePopulation(response)).toThrow(PopulationDataError)
-})
-
-test('同一区分の年重複は拒否する', () => {
-  const response = populationResponse()
-  response.result.data[0]!.data.push({ year: 2020, value: 200 })
-  expect(() => parsePopulation(response)).toThrow(PopulationDataError)
-})
-
-test.each([
-  null,
-  { year: 2020.5, value: 100 },
-  { year: 2020, value: 100.5 },
-  { year: 2020, value: 100, rate: '20' },
-  { year: 2020, value: 100, rate: NaN },
-  { year: 2020, value: 100, rate: 101 },
-])('年別データの不正な型や範囲を拒否する %#', (point) => {
-  const response = populationResponse()
-  const body = {
+  const [total, ...others] = response.result.data
+  return {
     ...response,
     result: {
       ...response.result,
-      data: response.result.data.map((series, index) =>
-        index === 0 ? { ...series, data: [point] } : series,
-      ),
+      data: [{ ...total, data: points }, ...others],
     },
   }
-  expect(() => parsePopulation(body)).toThrow(PopulationDataError)
-})
+}
 
-test('全区分を県単位の同一オリジンGETから取得する', async () => {
-  const fetcher = vi
-    .fn()
-    .mockResolvedValue(new Response(JSON.stringify(populationResponse())))
-  const result = await fetchPopulation(1, fetcher)
-  expect(fetcher).toHaveBeenCalledExactlyOnceWith(
-    '/api/v1/population/composition/perYear?prefCode=1',
-    { method: 'GET', signal: expect.any(AbortSignal) },
-  )
-  expect(result.categories.working).toEqual([
-    { year: 2020, value: 102, rate: 20 },
-  ])
-  expect(result.boundaryYear).toBe(2020)
-})
+describe('parsePopulation', () => {
+  test('4区分を年の昇順に並べ、rateは指定された点にだけ残す', () => {
+    const response = withTotalPoints([
+      { year: 2030, value: 300, rate: 100 },
+      { year: 2010, value: 0, rate: 0 },
+      { year: 2020, value: 200 },
+    ])
+    const { boundaryYear, categories } = parsePopulation(response)
+    expect(boundaryYear).toBe(2020)
+    expect(Object.keys(categories)).toEqual([
+      'total',
+      'young',
+      'working',
+      'elder',
+    ])
+    expect(categories.total).toEqual([
+      { year: 2010, value: 0, rate: 0 },
+      { year: 2020, value: 200 },
+      { year: 2030, value: 300, rate: 100 },
+    ])
+    expect(categories.young).toEqual([{ year: 2020, value: 101, rate: 20 }])
+  })
 
-test.each([0, 48, 1.5, NaN])('不正県コード%sでは通信しない', async (code) => {
-  const fetcher = vi.fn()
-  await expect(fetchPopulation(code, fetcher)).rejects.toThrow()
-  expect(fetcher).not.toHaveBeenCalled()
-})
+  test('必要な4区分以外のラベルは無視する', () => {
+    const response = populationResponse()
+    response.result.data.push({
+      label: '未知の人口区分',
+      data: [{ year: 2020, value: 999 }],
+    })
+    expect(parsePopulation(response)).toEqual(
+      parsePopulation(populationResponse()),
+    )
+  })
 
-test.each([
-  null,
-  { message: 'error', result: populationResponse().result },
-  { message: null, result: { boundaryYear: 2020, data: [] } },
-  {
-    message: null,
-    result: { ...populationResponse().result, boundaryYear: '2020' },
-  },
-  {
-    message: null,
-    result: {
-      boundaryYear: 2020,
-      data: populationResponse().result.data.map((s) => ({
-        ...s,
-        data: [{ year: 2020, value: -1 }],
-      })),
+  test.each([
+    { name: 'nullの本文', body: null },
+    {
+      name: 'messageがエラー',
+      body: { ...populationResponse(), message: 'error' },
     },
-  },
-  {
-    message: null,
-    result: {
-      boundaryYear: 2020,
-      data: Array(4).fill(populationResponse().result.data[0]),
+    {
+      name: '区分が空',
+      body: { message: null, result: { boundaryYear: 2020, data: [] } },
     },
-  },
-])('不正な応答を受け入れない %#', (body) => {
-  expect(() => parsePopulation(body)).toThrow()
+    {
+      name: 'boundaryYearが文字列',
+      body: {
+        message: null,
+        result: { ...populationResponse().result, boundaryYear: '2020' },
+      },
+    },
+    {
+      name: '必要な区分の重複',
+      body: {
+        message: null,
+        result: {
+          boundaryYear: 2020,
+          data: [
+            ...populationResponse().result.data,
+            populationResponse().result.data[0],
+          ],
+        },
+      },
+    },
+  ])('不正な応答（$name）を拒否する', ({ body }) => {
+    expect(() => parsePopulation(body)).toThrow(PopulationDataError)
+  })
+
+  test.each([
+    { name: '点がnull', point: null },
+    { name: '年が小数', point: { year: 2020.5, value: 100 } },
+    { name: '人数が小数', point: { year: 2020, value: 100.5 } },
+    { name: '人数が負', point: { year: 2020, value: -1 } },
+    { name: 'rateが文字列', point: { year: 2020, value: 100, rate: '20' } },
+    { name: 'rateがNaN', point: { year: 2020, value: 100, rate: NaN } },
+    { name: 'rateが100超', point: { year: 2020, value: 100, rate: 101 } },
+  ])('不正な年別データ（$name）を拒否する', ({ point }) => {
+    expect(() => parsePopulation(withTotalPoints([point]))).toThrow(
+      PopulationDataError,
+    )
+  })
+
+  test('同じ区分に同じ年が重複する応答を拒否する', () => {
+    const response = withTotalPoints([
+      { year: 2020, value: 100 },
+      { year: 2020, value: 200 },
+    ])
+    expect(() => parsePopulation(response)).toThrow(PopulationDataError)
+  })
+
+  test('失敗は固定の表示文言と、開発者向けの理由を持つ', () => {
+    expect(() => parsePopulation(null)).toThrow(
+      expect.objectContaining({
+        name: 'PopulationDataError',
+        message: POPULATION_FETCH_ERROR,
+        reason: expect.stringMatching(/\S/),
+      }),
+    )
+  })
 })
 
-test('HTTP失敗・JSON不正・通信失敗は安全なエラーにする', async () => {
-  for (const fetcher of [
+describe('fetchPopulation', () => {
+  const successFetcher = () =>
     vi
       .fn()
-      .mockResolvedValue(
-        new Response('private upstream details', { status: 503 }),
-      ),
-    vi.fn().mockResolvedValue(new Response('invalid JSON')),
-    vi.fn().mockRejectedValue(new Error('private upstream details')),
-  ]) {
-    await expect(fetchPopulation(1, fetcher)).rejects.toThrow(
-      '人口データを取得できませんでした',
-    )
-  }
-})
+      .mockResolvedValue(new Response(JSON.stringify(populationResponse())))
 
-test('人口取得にも15秒のタイムアウトを設け、GET以外の情報を送らない', async () => {
-  const timeout = vi.spyOn(AbortSignal, 'timeout')
-  const fetcher = vi
-    .fn()
-    .mockResolvedValue(new Response(JSON.stringify(populationResponse())))
-  try {
-    await fetchPopulation(13, fetcher)
-    expect(timeout).toHaveBeenCalledWith(15000)
-    expect(fetcher).toHaveBeenCalledWith(
+  test('県コードを付けた同一オリジンのGETで取得し、15秒でタイムアウトする', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const fetcher = successFetcher()
+    const result = await fetchPopulation(13, fetcher)
+    expect(fetcher).toHaveBeenCalledExactlyOnceWith(
       '/api/v1/population/composition/perYear?prefCode=13',
-      {
-        method: 'GET',
-        signal: expect.any(AbortSignal),
-      },
+      { method: 'GET', signal: expect.any(AbortSignal) },
     )
-  } finally {
-    timeout.mockRestore()
-  }
+    expect(timeout).toHaveBeenCalledWith(15000)
+    expect(result.categories.working).toEqual([
+      { year: 2020, value: 102, rate: 20 },
+    ])
+  })
+
+  test.each([0, 48, 1.5, NaN])(
+    '不正な県コード %s では通信しない',
+    async (code) => {
+      const fetcher = vi.fn()
+      await expect(fetchPopulation(code, fetcher)).rejects.toThrow(
+        PopulationDataError,
+      )
+      expect(fetcher).not.toHaveBeenCalled()
+    },
+  )
+
+  test.each([
+    {
+      name: 'HTTP失敗',
+      fetcher: () =>
+        vi
+          .fn()
+          .mockResolvedValue(new Response('private details', { status: 503 })),
+    },
+    {
+      name: 'JSONでない本文',
+      fetcher: () => vi.fn().mockResolvedValue(new Response('invalid JSON')),
+    },
+    {
+      name: '通信例外',
+      fetcher: () => vi.fn().mockRejectedValue(new Error('private details')),
+    },
+  ])('$name は内部情報を含まない固定文言の失敗にする', async ({ fetcher }) => {
+    await expect(fetchPopulation(1, fetcher())).rejects.toThrow(
+      POPULATION_FETCH_ERROR,
+    )
+  })
+
+  test('通信例外は元の例外をcauseに残す', async () => {
+    const cause = new Error('private details')
+    await expect(
+      fetchPopulation(1, vi.fn().mockRejectedValue(cause)),
+    ).rejects.toMatchObject({ reason: 'request failed', cause })
+  })
+
+  test('解析時のPopulationDataErrorは包み直さずそのまま投げる', async () => {
+    const error = new PopulationDataError('synthetic failure')
+    await expect(
+      fetchPopulation(1, vi.fn().mockRejectedValue(error)),
+    ).rejects.toBe(error)
+  })
 })

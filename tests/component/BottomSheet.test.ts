@@ -1,7 +1,21 @@
-import { expect, test, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 import BottomSheet from '../../src/components/shared/BottomSheet.vue'
+import { buttonByLabel } from './queries'
+
+// jsdomにはdialogのshowModal/closeと要素の描画判定がないため、必要最小限を補う。
+function polyfillDialog(dialog: HTMLDialogElement) {
+  Object.assign(dialog, {
+    showModal: () => {
+      dialog.open = true
+      dialog.querySelector<HTMLElement>('button')?.focus()
+    },
+    close: () => {
+      dialog.open = false
+    },
+  })
+}
 
 function mountSheet() {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
@@ -20,67 +34,62 @@ function mountSheet() {
   const dialog = document.querySelector('dialog')
   if (!(dialog instanceof HTMLDialogElement))
     throw new Error('dialogが必要です')
-  // jsdomにないネイティブdialog APIだけを、この要素上で補う。
-  Object.assign(dialog, {
-    showModal: () => {
-      dialog.open = true
-      dialog.querySelector<HTMLElement>('button')?.focus()
-    },
-    close: () => {
-      dialog.open = false
-    },
-  })
-  return { wrapper, dialog: new DOMWrapper(dialog) }
+  polyfillDialog(dialog)
+  const opener = buttonByLabel(wrapper, 'シートを開く')
+  return { wrapper, opener, dialog: new DOMWrapper(dialog) }
 }
+const focusedText = () => document.activeElement?.textContent
 
-test('開くとタイトルとslotを表示し、ページのスクロールを固定する', async () => {
-  const { wrapper, dialog } = mountSheet()
-  await wrapper.get('button').trigger('click')
-  expect(dialog.element).toHaveProperty('open', true)
-  expect(dialog.get('h2').text()).toBe('確認')
-  expect(document.body.style.position).toBe('fixed')
-  expect(document.activeElement?.textContent).toBe('閉じる')
-  await dialog.get('input').setValue('名前')
-  expect(dialog.get('input').element).toHaveProperty('value', '名前')
-})
+describe('BottomSheet', () => {
+  test('開くとタイトルと中身を表示し、閉じるボタンへフォーカスを移し、ページのスクロールを固定する', async () => {
+    const { opener, dialog } = mountSheet()
+    await opener.trigger('click')
+    expect(dialog.element.open).toBe(true)
+    expect(dialog.get('h2').text()).toBe('確認')
+    expect(focusedText()).toBe('閉じる')
+    expect(document.body.style.position).toBe('fixed')
+    await dialog.get('input').setValue('名前')
+    expect(dialog.get('input').element.value).toBe('名前')
+  })
 
-test.each(['click', 'cancel'])(
-  '%sで閉じて元のフォーカスとscroll lockを復元する',
-  async (event) => {
-    const { wrapper, dialog } = mountSheet()
-    wrapper.get('button').element.focus()
-    await wrapper.get('button').trigger('click')
+  test.each([
+    { how: '背景のクリック', event: 'click' },
+    { how: 'Escキー（cancel）', event: 'cancel' },
+  ])('$howで閉じ、開く前のフォーカスとスクロールを戻す', async ({ event }) => {
+    const { opener, dialog } = mountSheet()
+    opener.element.focus()
+    await opener.trigger('click')
     await dialog.trigger(event)
-    expect(dialog.element).toHaveProperty('open', false)
+    expect(dialog.element.open).toBe(false)
     expect(document.body.style.position).toBe('')
-    expect(document.activeElement?.textContent).toBe('シートを開く')
-  },
-)
+    expect(focusedText()).toBe('シートを開く')
+  })
 
-test('背景へのダブルクリックの2回目では閉じない', async () => {
-  const { wrapper, dialog } = mountSheet()
-  await wrapper.get('button').trigger('click')
-  dialog.element.dispatchEvent(new MouseEvent('click', { detail: 2 }))
-  await flushPromises()
-  expect(dialog.element).toHaveProperty('open', true)
-})
+  test('背景のダブルクリックの2回目では閉じない', async () => {
+    const { opener, dialog } = mountSheet()
+    await opener.trigger('click')
+    dialog.element.dispatchEvent(new MouseEvent('click', { detail: 2 }))
+    await flushPromises()
+    expect(dialog.element.open).toBe(true)
+  })
 
-test('TabとShift+Tabは先頭と末尾を巡回し中間操作を妨げない', async () => {
-  const { wrapper, dialog } = mountSheet()
-  await wrapper.get('button').trigger('click')
-  await dialog.trigger('keydown', { key: 'Tab', shiftKey: true })
-  expect(document.activeElement?.textContent).toBe('反映')
-  await dialog.trigger('keydown', { key: 'Tab' })
-  expect(document.activeElement?.textContent).toBe('閉じる')
-  dialog.get('input').element.focus()
-  await dialog.trigger('keydown', { key: 'Tab' })
-  expect(document.activeElement).toBe(dialog.get('input').element)
-})
+  test('TabとShift+Tabは先頭と末尾の間で巡回し、途中の要素では通常どおり進む', async () => {
+    const { opener, dialog } = mountSheet()
+    await opener.trigger('click')
+    await dialog.trigger('keydown', { key: 'Tab', shiftKey: true })
+    expect(focusedText()).toBe('反映')
+    await dialog.trigger('keydown', { key: 'Tab' })
+    expect(focusedText()).toBe('閉じる')
+    dialog.get('input').element.focus()
+    await dialog.trigger('keydown', { key: 'Tab' })
+    expect(document.activeElement).toBe(dialog.get('input').element)
+  })
 
-test('開いたままunmountしてもページ状態を復元する', async () => {
-  const { wrapper } = mountSheet()
-  await wrapper.get('button').trigger('click')
-  wrapper.unmount()
-  expect(document.body.style.position).toBe('')
-  expect(window.scrollTo).toHaveBeenCalled()
+  test('開いたままunmountしてもスクロール固定を解除する', async () => {
+    const { wrapper, opener } = mountSheet()
+    await opener.trigger('click')
+    wrapper.unmount()
+    expect(document.body.style.position).toBe('')
+    expect(window.scrollTo).toHaveBeenCalled()
+  })
 })
